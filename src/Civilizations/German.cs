@@ -7,66 +7,36 @@
 // You should have received a copy of the CC0 legalcode along with this
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
-using CivOne.Interfaces;
+using CivOne.Leaders;
+using CivOne.Templates;
 
 namespace CivOne.Civilizations
 {
-	internal class German : ICivilization
+	internal class German : BaseCivilization<Frederick>
 	{
-		public string Name
+		public German() : base(3, 3, "German", "Germans")
 		{
-			get { return "German"; }
-		}
-
-		public string NamePlural
-		{
-			get { return "Germans"; }
-		}
-
-		public string LeaderName
-		{
-			get { return "Frederick"; }
-		}
-
-		public byte PreferredPlayerNumber
-		{
-			get { return 3; }
-		}
-
-		public byte StartX
-		{
-			get { return 38; }
-		}
-
-		public byte StartY
-		{
-			get { return 15; }
-		}
-		
-		public string[] CityNames
-		{
-			get
+			StartX = 38;
+			StartY = 15;
+			CityNames = new string[]
 			{
-				return new string[]
-				{
-					"Berlin",
-					"Leipzig",
-					"Hamburg",
-					"Bremen",
-					"Frankfurt",
-					"Bonn",
-					"Nuremberg",
-					"Cologne",
-					"Hannover",
-					"Munich",
-					"Stuttgart",
-					"Heidelberg",
-					"Salzburg",
-					"Konigsberg",
-					"Dortmond",
-					"Brandenburg"
-				};
-			}
+				"Berlin",
+				"Leipzig",
+				"Hamburg",
+				"Bremen",
+				"Frankfurt",
+				"Bonn",
+				"Nuremberg",
+				"Cologne",
+				"Hannover",
+				"Munich",
+				"Stuttgart",
+				"Heidelberg",
+				"Salzburg",
+				"Konigsberg",
+				"Dortmond",
+				"Brandenburg"
+			};
 		}
 	}
 }

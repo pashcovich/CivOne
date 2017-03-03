@@ -11,18 +11,32 @@ using System;
 using System.Linq;
 using CivOne.Interfaces;
 using CivOne.Tasks;
+using CivOne.Templates;
 using CivOne.Tiles;
 using CivOne.Units;
 
 namespace CivOne
 {
-	internal class AI
+	internal class AI : BaseInstance
 	{
-		private static Map Map
+		private static void BarbarianMove(IUnit unit)
 		{
-			get
+			ITile[] tiles = unit.Tile.GetBorderTiles().Where(t => !t.IsOcean && t.Units.Any(u => u.Owner != 0)).ToArray();
+			if (tiles.Length == 0)
 			{
-				return Map.Instance;
+				// No adjecent units found
+				Game.DisbandUnit(unit);
+				return;
+			}
+			else
+			{
+				ITile moveTo = tiles[Common.Random.Next(tiles.Length)];
+				int relX = moveTo.X - unit.X;
+				int relY = moveTo.Y - unit.Y;
+				while (relX < -1) relX += 80;
+				while (relX > 1) relX -= 80;
+
+				unit.MoveTo(relX, relY);
 			}
 		}
 
@@ -30,11 +44,11 @@ namespace CivOne
 		{
 			if (unit.Owner == 0)
 			{
-				// Barbarians
-				// Until confrontation has been implemented, barbarians delete themselves
-				Game.Instance.DisbandUnit(unit);
+				BarbarianMove(unit);
+				return;
 			}
-			else if (unit is Settlers)
+			
+			if (unit is Settlers)
 			{
 				if (!((Map[unit.X, unit.Y] is Grassland) || (Map[unit.X, unit.Y] is River) || (Map[unit.X, unit.Y] is Plains)))
 				{

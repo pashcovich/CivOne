@@ -8,12 +8,9 @@
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 using System;
-using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using CivOne.Enums;
 using CivOne.GFX;
-using CivOne.Interfaces;
 using CivOne.Templates;
 
 namespace CivOne.Screens
@@ -28,16 +25,37 @@ namespace CivOne.Screens
 			Close();
 		}
 
+		private void MenuAnimations(object sender, EventArgs args)
+		{
+			Settings.Animations = !Settings.Animations;
+			CloseMenus();
+			Close();
+		}
+
+		private void MenuCivilopediaText(object sender, EventArgs args)
+		{
+			Settings.CivilopediaText = !Settings.CivilopediaText;
+			CloseMenus();
+			Close();
+		}
+
 		private void MenuInstantAdvice(object sender, EventArgs args)
 		{
-			Settings.Instance.InstantAdvice = !Settings.Instance.InstantAdvice;
+			Settings.InstantAdvice = !Settings.InstantAdvice;
+			CloseMenus();
+			Close();
+		}
+
+		private void MenuAutoSave(object sender, EventArgs args)
+		{
+			Settings.AutoSave = !Settings.AutoSave;
 			CloseMenus();
 			Close();
 		}
 
 		private void MenuEndOfTurn(object sender, EventArgs args)
 		{
-			Settings.Instance.EndOfTurn = !Settings.Instance.EndOfTurn;
+			Settings.EndOfTurn = !Settings.EndOfTurn;
 			CloseMenus();
 			Close();
 		}
@@ -48,19 +66,19 @@ namespace CivOne.Screens
 			{
 				_update = false;
 
-				Bitmap background = (Bitmap)Resources.Instance.GetPart("SP299", 288, 120, 32, 16);
+				Picture background = Resources.Instance.GetPart("SP299", 288, 120, 32, 16);
 				Picture menuGfx = new Picture(104, 79);
 				menuGfx.FillLayerTile(background);
 				menuGfx.AddBorder(15, 8, 0, 0, 103, 79);
 				menuGfx.FillRectangle(0, 103, 0, 1, 79);
 				menuGfx.DrawText("Options:", 0, 15, 4, 4);
 
-				Bitmap menuBackground = (Bitmap)menuGfx.GetPart(2, 11, 100, 64).Clone();
+				Picture menuBackground = menuGfx.GetPart(2, 11, 100, 64);
 				Picture.ReplaceColours(menuBackground, new byte[] { 7, 22 }, new byte[] { 11, 3 });
 
 				AddLayer(menuGfx, 25, 17);
 
-				Menu menu = new Menu(Canvas.Image.Palette.Entries, menuBackground)
+				Menu menu = new Menu(Canvas.Palette, menuBackground)
 				{
 					X = 27,
 					Y = 28,
@@ -74,27 +92,28 @@ namespace CivOne.Screens
 				menu.MissClick += MenuCancel;
 				menu.Cancel += MenuCancel;
 
-				menu.Items.Add(new Menu.Item($"{(Settings.Instance.InstantAdvice ? '^' : ' ')}Instant Advice"));
-				menu.Items.Add(new Menu.Item(" AutoSave") { Enabled = false });
-				menu.Items.Add(new Menu.Item($"{(Settings.Instance.EndOfTurn ? '^' : ' ')}End of Turn"));
-				menu.Items.Add(new Menu.Item(" Animations") { Enabled = false });
+				menu.Items.Add(new Menu.Item($"{(Settings.InstantAdvice ? '^' : ' ')}Instant Advice"));
+				menu.Items.Add(new Menu.Item($"{(Settings.AutoSave ? '^' : ' ')}AutoSave"));
+				menu.Items.Add(new Menu.Item($"{(Settings.EndOfTurn ? '^' : ' ')}End of Turn"));
+				menu.Items.Add(new Menu.Item($"{(Settings.Animations ? '^' : ' ')}Animations"));
 				menu.Items.Add(new Menu.Item(" Sound") { Enabled = false });
 				menu.Items.Add(new Menu.Item(" Enemy Moves") { Enabled = false });
-				menu.Items.Add(new Menu.Item(" Civilopedia Text") { Enabled = false });
+				menu.Items.Add(new Menu.Item($"{(Settings.CivilopediaText ? '^' : ' ')}Civilopedia Text"));
 				menu.Items.Add(new Menu.Item(" Palace") { Enabled = false });
 
 				menu.Items[0].Selected += MenuInstantAdvice;
+				menu.Items[1].Selected += MenuAutoSave;
 				menu.Items[2].Selected += MenuEndOfTurn;
+				menu.Items[3].Selected += MenuAnimations;
+				menu.Items[6].Selected += MenuCivilopediaText;
 
-				Menus.Add(menu);
-				Common.AddScreen(menu);
+				AddMenu(menu);
 			}
 			return true;
 		}
 
 		public void Close()
 		{
-			HandleClose();
 			Destroy();
 		}
 
@@ -102,10 +121,10 @@ namespace CivOne.Screens
 		{
 			Cursor = MouseCursor.Pointer;
 
-			Color[] palette = Resources.Instance.LoadPIC("SP257").Image.Palette.Entries;
+			Color[] palette = Resources.Instance.LoadPIC("SP257").Palette;
 			
 			_canvas = new Picture(320, 200, palette);
-			_canvas.AddLayer(Common.Screens.Last().Canvas.Image, 0, 0);
+			_canvas.AddLayer(Common.Screens.Last().Canvas, 0, 0);
 			_canvas.FillRectangle(5, 24, 16, 105, 81);
 		}
 	}

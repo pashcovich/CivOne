@@ -9,7 +9,6 @@
 
 using System;
 using System.Linq;
-using CivOne.Interfaces;
 using CivOne.Screens;
 
 namespace CivOne.Tasks
@@ -40,7 +39,7 @@ namespace CivOne.Tasks
 				return;
 			}
 
-			if (_player.Science == 0)
+			if (_player.Science == 0 && _player.Cities.Sum(x => x.Science) == 0)
 			{
 				// This task is only for human players
 				EndTask();
@@ -63,7 +62,7 @@ namespace CivOne.Tasks
 		public TechSelect(Player player)
 		{
 			_player = player;
-			_human = (Game.Instance.HumanPlayer == player);
+			_human = (Human == player);
 		}
 	}
 }

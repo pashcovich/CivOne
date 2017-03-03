@@ -43,19 +43,32 @@ namespace CivOne.Units
 		public int BuildingMine { get; private set; }
 		public int BuildingFortress { get; private set; }
 
+		internal void SetStatus(bool[] bits)
+		{
+			BuildingRoad = (bits[1] && !bits[6] && !bits[7]) ? 2 : 0;
+			BuildingIrrigation = (!bits[1] && bits[6] && !bits[7]) ? 3 : 0;
+			BuildingMine = (!bits[1] && !bits[6] && bits[7]) ? 4 : 0;
+			BuildingFortress = (!bits[1] && bits[6] && bits[7]) ? 5 : 0;
+		}
+
 		public bool BuildRoad()
 		{
 			ITile tile = Map[X, Y];
+			if (tile.RailRoad)
+			{
+				// There is already a RailRoad here, don't build another one
+				return false;
+			}
 			if (!tile.IsOcean && !tile.Road && tile.City == null)
 			{
-				if ((tile is River) && !Game.Instance.CurrentPlayer.Advances.Any(a => a is BridgeBuilding))
+				if ((tile is River) && !Game.CurrentPlayer.Advances.Any(a => a is BridgeBuilding))
 					return false;
 				BuildingRoad = 2;
 				MovesLeft = 0;
 				PartMoves = 0;
 				return true;
 			}
-			else if (Game.Instance.HumanPlayer.Advances.Any(a => a is RailRoad) && !tile.IsOcean && tile.Road && !tile.RailRoad && tile.City == null)
+			else if (Game.CurrentPlayer.Advances.Any(a => a is RailRoad) && !tile.IsOcean && tile.Road && !tile.RailRoad && tile.City == null)
 			{
 				BuildingRoad = 3;
 				MovesLeft = 0;
@@ -68,6 +81,12 @@ namespace CivOne.Units
 		public bool BuildIrrigation()
 		{
 			ITile tile = Map[X, Y];
+			if (tile.Irrigation)
+			{
+				// Tile already irrigated, ignore
+				return false;
+			}
+
 			if ((tile is Forest) || (tile is Jungle) || (tile is Swamp))
 			{
 				BuildingIrrigation = 4;
@@ -114,7 +133,7 @@ namespace CivOne.Units
 
 		public bool BuildFortress()
 		{
-			if (!Game.Instance.CurrentPlayer.Advances.Any(a => a is Construction))
+			if (!Game.CurrentPlayer.Advances.Any(a => a is Construction))
 				return false;
 			
 			ITile tile = Map[X, Y];
@@ -138,7 +157,7 @@ namespace CivOne.Units
 				{
 					if (Map[X, Y].Road)
 					{
-						if (Game.Instance.HumanPlayer.Advances.Any(a => a is RailRoad))
+						if (Game.HumanPlayer.Advances.Any(a => a is RailRoad))
 						{
 							Map[X, Y].RailRoad = true;
 						}
@@ -283,7 +302,7 @@ namespace CivOne.Units
 		private GameMenu.Item MenuBuildFortress()
 		{
 			GameMenu.Item item = new GameMenu.Item("Build fortress", "f");
-			if (!Game.Instance.CurrentPlayer.Advances.Any(a => a is Construction))
+			if (!Game.CurrentPlayer.Advances.Any(a => a is Construction))
 				item.Enabled = false;
 			else
 				item.Selected += (s, a) => GameTask.Enqueue(Orders.BuildFortress(this));
@@ -297,8 +316,11 @@ namespace CivOne.Units
 				ITile tile = Map[X, Y];
 
 				yield return MenuNoOrders();
-				yield return MenuFoundCity();
-				if (!tile.IsOcean && (!tile.Road || (Game.Instance.HumanPlayer.Advances.Any(a => a is RailRoad) && !tile.RailRoad)))
+				if (!tile.IsOcean)
+				{
+					yield return MenuFoundCity();
+				}
+				if (!tile.IsOcean && (!tile.Road || (Game.HumanPlayer.Advances.Any(a => a is RailRoad) && !tile.RailRoad)))
 				{	
 					yield return MenuBuildRoad();
 				}
@@ -310,7 +332,10 @@ namespace CivOne.Units
 				{
 					yield return MenuBuildMines();
 				}
-				yield return MenuBuildFortress();
+				if (!tile.IsOcean && !tile.Fortress)
+				{
+					yield return MenuBuildFortress();
+				}
 				//
 				yield return MenuWait();
 				yield return MenuSentry();
@@ -335,28 +360,28 @@ namespace CivOne.Units
 
 			if (BuildingRoad > 0)
 			{
-				Picture unit = new Picture(base.GetUnit(colour).Image);
+				Picture unit = new Picture(base.GetUnit(colour));
 				unit.DrawText("R", 0, 5, 8, 9, TextAlign.Center);
 				unit.DrawText("R", 0, (byte)(colour == 1 ? 9 : 15), 8, 8, TextAlign.Center);
 				return unit; 
 			}
 			else if (BuildingIrrigation > 0)
 			{
-				Picture unit = new Picture(base.GetUnit(colour).Image);
+				Picture unit = new Picture(base.GetUnit(colour));
 				unit.DrawText("I", 0, 5, 8, 9, TextAlign.Center);
 				unit.DrawText("I", 0, (byte)(colour == 1 ? 9 : 15), 8, 8, TextAlign.Center);
 				return unit; 
 			}
 			else if (BuildingMine > 0)
 			{
-				Picture unit = new Picture(base.GetUnit(colour).Image);
+				Picture unit = new Picture(base.GetUnit(colour));
 				unit.DrawText("M", 0, 5, 8, 9, TextAlign.Center);
 				unit.DrawText("M", 0, (byte)(colour == 1 ? 9 : 15), 8, 8, TextAlign.Center);
 				return unit; 
 			}
 			else if (BuildingFortress > 0)
 			{
-				Picture unit = new Picture(base.GetUnit(colour).Image);
+				Picture unit = new Picture(base.GetUnit(colour));
 				unit.DrawText("F", 0, 5, 8, 9, TextAlign.Center);
 				unit.DrawText("F", 0, (byte)(colour == 1 ? 9 : 15), 8, 8, TextAlign.Center);
 				return unit; 

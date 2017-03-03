@@ -8,12 +8,12 @@
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 using System;
-using System.Drawing;
+using System.Collections.Generic;
 using System.Linq;
-using CivOne.Buildings;
-using CivOne.Enums;
+using CivOne.Events;
 using CivOne.GFX;
 using CivOne.Interfaces;
+using CivOne.Screens.Dialogs;
 using CivOne.Templates;
 
 namespace CivOne.Screens
@@ -21,53 +21,59 @@ namespace CivOne.Screens
 	internal class CityBuildings : BaseScreen
 	{
 		private readonly City _city;
+		private IProduction[] _improvements;
 
-		private readonly Bitmap _background;
+		private readonly Picture _background;
 		
 		private bool _update = true;
+		
+		public event EventHandler BuildingUpdate;
 
-		private void DrawWonders(int offset = 0)
+		private int _page = 0;
+
+		private void DrawWonder(IWonder wonder, int offset)
 		{
-			IWonder[] wonders = _city.Wonders.ToArray();
-			for (int i = 0; i < wonders.Length; i++)
+			int xx = (offset % 2 == 0) ? 21 : 1;
+			int yy = -1 + (6 * offset);
+			if (yy < 0)
+				AddLayer(wonder.SmallIcon.GetPart(0, Math.Abs(yy), wonder.SmallIcon.Width, wonder.SmallIcon.Height + yy), xx, 0);
+			else
+				AddLayer(wonder.SmallIcon, xx, yy);
+			
+			string name = wonder.Name;
+			while (Resources.Instance.GetTextSize(1, name).Width > 62)
 			{
-				int ii = (i + offset);
-				int xx = (ii % 2 == 0) ? 21 : 1;
-				int yy = -1 + (6 * ii);
-				if (yy < 0)
-					AddLayer(wonders[i].SmallIcon.GetPart(0, Math.Abs(yy), wonders[i].SmallIcon.Image.Width, wonders[i].SmallIcon.Image.Height + yy), xx, 0);
-				else
-					AddLayer(wonders[i].SmallIcon, xx, yy);
-				
-				string name = wonders[i].Name;
-				while (Resources.Instance.GetTextSize(1, name).Width > 62)
-				{
-					name = $"{name.Substring(0, name.Length - 2)}.";
-				}
-				_canvas.DrawText(name, 1, 15, 42, 3 + (6 * ii));
+				name = $"{name.Substring(0, name.Length - 2)}.";
 			}
+			_canvas.DrawText(name, 1, 15, 42, 3 + (6 * offset));
 		}
 
-		private void DrawBuildings(int offset = 0)
+		private void DrawBuilding(IBuilding building, int offset)
 		{
-			IBuilding[] buildings = _city.Buildings.ToArray();
-			for (int i = 0; i < buildings.Length; i++)
+			int xx = (offset % 2 == 0) ? 21 : 1;
+			int yy = -1 + (6 * offset);
+			if (yy < 0)
+				AddLayer(building.SmallIcon.GetPart(0, Math.Abs(yy), building.SmallIcon.Width, building.SmallIcon.Height + yy), xx, 0);
+			else
+				AddLayer(building.SmallIcon, xx, yy);
+
+			string name = building.Name;
+			while (Resources.Instance.GetTextSize(1, name).Width > 54)
 			{
-				int ii = (i + offset);
-				int xx = (ii % 2 == 0) ? 21 : 1;
-				int yy = -1 + (6 * ii);
-				if (yy < 0)
-					AddLayer(buildings[i].SmallIcon.GetPart(0, Math.Abs(yy), buildings[i].SmallIcon.Image.Width, buildings[i].SmallIcon.Image.Height + yy), xx, 0);
-				else
-					AddLayer(buildings[i].SmallIcon, xx, yy);
-				
-				string name = buildings[i].Name;
-				while (Resources.Instance.GetTextSize(1, name).Width > 54)
-				{
-					name = $"{name.Substring(0, name.Length - 1)}";
-				}
-				_canvas.DrawText(name, 1, 15, 42, 3 + (6 * ii));
-				AddLayer(Icons.SellButton, 98, 2 + (6 * i));
+				name = $"{name.Substring(0, name.Length - 1)}";
+			}
+			_canvas.DrawText(name, 1, 15, 42, 3 + (6 * offset));
+			AddLayer(Icons.SellButton, 98, 2 + (6 * offset));
+		}
+
+		private IEnumerable<IProduction> GetImprovements
+		{
+			get
+			{
+				foreach (IWonder wonder in _city.Wonders)
+					yield return wonder;
+				foreach (IBuilding building in _city.Buildings)
+					yield return building;
 			}
 		}
 		
@@ -78,8 +84,21 @@ namespace CivOne.Screens
 				_canvas.FillLayerTile(_background);
 				_canvas.FillRectangle(0, 107, 0, 1, 97);
 
-				DrawWonders();
-				DrawBuildings(_city.Wonders.Length);
+				for (int i = (_page * 14); i < _improvements.Length && i < ((_page + 1) * 14); i++)
+				{
+					if (_improvements[i] is IWonder)
+					{
+						DrawWonder((_improvements[i] as IWonder), i % 14);
+						continue;
+					}
+					DrawBuilding((_improvements[i] as IBuilding), i % 14);
+					continue;
+				}
+
+				if (_improvements.Length > 14)
+				{
+					DrawButton("More", 9, 1, 76, 87, 29);
+				}
 
 				_canvas.AddBorder(1, 1, 0, 0, 107, 97);
 				
@@ -88,17 +107,51 @@ namespace CivOne.Screens
 			return true;
 		}
 
-		public void Close()
+		private void SellBuilding(object sender, EventArgs args)
 		{
-			Destroy();
+			_city.SellBuilding((sender as ConfirmSell).Building);
+			_page = 0;
+			_improvements = GetImprovements.ToArray();
+			_update = true;
+			if (BuildingUpdate != null)
+				BuildingUpdate(this, null);
 		}
 
-		public CityBuildings(City city, Bitmap background)
+		public override bool MouseDown(ScreenEventArgs args)
+		{
+			if (!_city.BuildingSold && args.X > 97 && args.X < 105)
+			{
+				int yy = 2;
+				for (int i = (_page * 14); i < _improvements.Length && i < ((_page + 1) * 14); i++)
+				{
+					if (args.Y >= yy && args.Y < yy + 8 && _improvements[i] is IBuilding)
+					{
+						ConfirmSell confirmSell = new ConfirmSell(_improvements[i] as IBuilding);
+						confirmSell.Sell += SellBuilding;
+						Common.AddScreen(confirmSell);
+						return true;
+					}
+					yy += 6;
+				}
+			}
+
+			if (args.X > 75 && args.X < 105 && args.Y > 86 && args.Y < 96)
+			{
+				_page++;
+				if ((_page * 14) > _improvements.Length) _page = 0;
+				_update = true;
+				return true;
+			}
+			return false;
+		}
+
+		public CityBuildings(City city, Picture background)
 		{
 			_city = city;
+			_improvements = GetImprovements.ToArray();
 			_background = background;
 
-			_canvas = new Picture(108, 97, background.Palette.Entries);
+			_canvas = new Picture(108, 97, background.Palette);
 		}
 	}
 }

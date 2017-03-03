@@ -8,7 +8,6 @@
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 using System;
-using System.Drawing.Imaging;
 using System.Linq;
 using CivOne.Enums;
 using CivOne.Events;
@@ -92,9 +91,9 @@ namespace CivOne.Screens
 				_pictures[1].ApplyNoise(_noiseMap, --_noiseCounter);
 			}
 			
-			if (_noiseCounter == 0 && Menus.Count > 0 && !Common.HasScreenType(typeof(Menu)) && (_overlay == null || LoadGameCancel))
+			if (_noiseCounter == 0 && HasMenu && !Common.HasScreenType<Menu>() && (_overlay == null || LoadGameCancel))
 			{
-				Common.AddScreen(Menus[0]);
+				CreateMenu();
 			}
 			
 			// Drawing
@@ -116,8 +115,8 @@ namespace CivOne.Screens
 				_canvas.DrawText(_introText[_introLine], 4, _textColours[2], 160, 83, TextAlign.Center);
 			}
 			if (_introLeft == -320 && _noiseCounter > 0)
-            {
-                if (!_introSkipped) AddLayer(_pictures[1]);
+			{
+				if (!_introSkipped) AddLayer(_pictures[1]);
 				if (_logoSwipe < 320)
 				{
 					if (_logoSwipe > 0)
@@ -127,7 +126,7 @@ namespace CivOne.Screens
 				}
 				else
 				{
-					AddLayer(_pictures[2].Image);	
+					AddLayer(_pictures[2]);	
 				}
 				if (_introSkipped) AddLayer(_pictures[1]);
 			}
@@ -142,12 +141,9 @@ namespace CivOne.Screens
 					AddLayer(_overlay);
 					if (_overlay.GetType() == typeof(LoadGame) && ((LoadGame)_overlay).Cancel)
 					{
-						if (Menus.Count == 0)
-						{
-							CreateMenu();
-						}
+						CreateMenu();
 					}
-					if (Menus.Count == 0) return true;
+					if (!HasMenu) return true;
 				}
 				
 				// Draw menu background
@@ -155,6 +151,8 @@ namespace CivOne.Screens
 				_canvas.FillRectangle(_menuColours[0], 101, 141, 120, 47);
 				_canvas.FillRectangle(_menuColours[1], 101, 142, 119, 46);
 				_canvas.FillRectangle(_menuColours[2], 102, 142, 118, 45);
+				
+				CreateMenu();
 			}
 			return true;
 		}
@@ -174,7 +172,8 @@ namespace CivOne.Screens
 		
 		private void CreateMenu()
 		{
-			Menu menu = new Menu(Canvas.Image.Palette.Entries)
+			if (HasMenu) return;
+			Menu menu = new Menu(Canvas.Palette)
 			{
 				X = 103,
 				Y = 144,
@@ -196,7 +195,7 @@ namespace CivOne.Screens
 			menuItems[2].Selected += Earth;
 			menuItems[3].Selected += CustomizeWorld;
 			
-			Menus.Add(menu);
+			AddMenu(menu);
 		}
 		
 		private void StartNewGame(object sender, EventArgs args)
@@ -213,7 +212,7 @@ namespace CivOne.Screens
 			Console.WriteLine("Main Menu: Load a Saved Game");
 			CloseMenus();
 			
-			_overlay = new LoadGame(_canvas.Image.Palette.Entries);
+			_overlay = new LoadGame(_canvas.Palette);
 		}
 		
 		private void Earth(object sender, EventArgs args)
@@ -272,6 +271,7 @@ namespace CivOne.Screens
 		public Credits()
 		{
 			_introText = TextFile.Instance.LoadArray("CREDITS");
+			if (_introText.Length == 0) _introText = new string[25];
 			_pictures = new Picture[3];
 			for (int i = 0; i < 2; i++)
 				_pictures[i] = Resources.Instance.LoadPIC(string.Format("BIRTH{0}", i), true);
@@ -282,7 +282,7 @@ namespace CivOne.Screens
 			{
 				_noiseMap[x, y] = (byte)Common.Random.Next(1, _noiseCounter);
 			}
-			switch (Settings.Instance.GraphicsMode)
+			switch (Settings.GraphicsMode)
 			{
 				case GraphicsMode.Graphics256:
 					_textColours = new byte[] { 248, 242, 244 };
@@ -293,9 +293,7 @@ namespace CivOne.Screens
 			}
 			_menuColours = new byte[] { 8, 15, 7 };
 			
-			_canvas = new Picture(320, 200, _pictures[2].Image.Palette.Entries);
-			
-			CreateMenu();
+			_canvas = new Picture(320, 200, _pictures[2].Palette);
 		}
 	}
 }

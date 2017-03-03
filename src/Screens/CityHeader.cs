@@ -7,12 +7,11 @@
 // You should have received a copy of the CC0 legalcode along with this
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
-using System.Collections.Generic;
-using System.Drawing;
+using System;
 using System.Linq;
 using CivOne.Enums;
+using CivOne.Events;
 using CivOne.GFX;
-using CivOne.Interfaces;
 using CivOne.Templates;
 
 namespace CivOne.Screens
@@ -21,9 +20,11 @@ namespace CivOne.Screens
 	{
 		private readonly City _city;
 
-		private readonly Bitmap _background;
+		private readonly Picture _background;
 		
 		private bool _update = true;
+		
+		public event EventHandler HeaderUpdate;
 
 		public override bool HasUpdate(uint gameTick)
 		{
@@ -43,7 +44,7 @@ namespace CivOne.Screens
 					xx += 8;
 					if (i > 0)
 					{
-						if (citizens[i] == Citizen.Entertainer && citizens[i - 1] != Citizen.Entertainer) xx += 6;
+						if ((int)citizens[i] >= 6 && (int)citizens[i - 1] < 6) xx += 6;
 					}
 					AddLayer(Icons.Citizen(citizens[i]), xx, 7);
 				}
@@ -53,8 +54,35 @@ namespace CivOne.Screens
 			return true;
 		}
 
+		public override bool MouseDown(ScreenEventArgs args)
+		{
+			if (args.Y > 6 && args.Y < 20)
+			{
+				Citizen[] citizens = _city.Citizens.ToArray();
+				int xx = 0;
+				int index = -1;
+				for (int i = 0; i < _city.Size; i++)
+				{
+					xx += 8;
+					if ((int)citizens[i] >= 6) index++;
+					if (i > 0)
+					{
+						if ((int)citizens[i] >= 6 && (int)citizens[i - 1] < 6) xx += 6;
+					}
+					if (args.X < xx || args.X > (xx + 7) || index < 0) continue;
+
+					_city.ChangeSpecialist(index);
+					Update();
+					return true;
+				}
+				return false;
+			}
+			return false;
+		}
+
 		public void Update()
 		{
+			if (HeaderUpdate != null) HeaderUpdate(this, null);
 			_update = true;
 		}
 
@@ -63,12 +91,12 @@ namespace CivOne.Screens
 			Destroy();
 		}
 
-		public CityHeader(City city, Bitmap background)
+		public CityHeader(City city, Picture background)
 		{
 			_city = city;
 			_background = background;
 
-			_canvas = new Picture(208, 21, background.Palette.Entries);
+			_canvas = new Picture(208, 21, background.Palette);
 		}
 	}
 }

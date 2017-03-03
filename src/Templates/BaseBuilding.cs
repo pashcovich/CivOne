@@ -8,7 +8,6 @@
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 using System;
-using System.Drawing;
 using CivOne.Enums;
 using CivOne.GFX;
 using CivOne.Interfaces;
@@ -71,6 +70,15 @@ namespace CivOne.Templates
 		protected Building Type { get; set; }
 		
 		public IAdvance RequiredTech { get; protected set; }
+		public short SellPrice { get; private set; }
+		public short BuyPrice { get; private set; }
+		public byte ProductionId
+		{
+			get
+			{
+				return (byte)(255 - Type);
+			}
+		}
 		public byte Price { get; protected set; }
 		public byte Maintenance { get; protected set; }
 		
@@ -78,16 +86,16 @@ namespace CivOne.Templates
 		{
 			if ((grassTile && _iconsCacheGrass[col, row] == null) || (!grassTile && _iconsCache[col, row] == null))
 			{
-				Icon = new Picture(52, 50, Resources.Instance.LoadPIC("CITYPIX2").Image.Palette.Entries);
+				Icon = new Picture(52, 50, Resources.Instance.LoadPIC("CITYPIX2").Palette);
 				
 				if (grassTile)
 				{
-					Bitmap grass = (Bitmap)Resources.Instance.LoadPIC("CITYPIX2", true).GetPart(250, 0, 52, 50).Clone();
+					Picture grass = Resources.Instance.LoadPIC("CITYPIX2").GetPart(250, 0, 52, 50);
 					Picture.ReplaceColours(grass, 1, 0);
 					Icon.AddLayer(grass);
 				}
 				
-				Bitmap icon = (Bitmap)Resources.Instance.LoadPIC("CITYPIX2", true).GetPart(col * 50, row * 50, 52, 50).Clone();
+				Picture icon = Resources.Instance.LoadPIC("CITYPIX2").GetPart(col * 50, row * 50, 52, 50);
 				Picture.ReplaceColours(icon, 1, 0);
 				Icon.AddLayer(icon);
 				Icon.FillRectangle(0, 50, 0, 2, 50);
@@ -100,7 +108,7 @@ namespace CivOne.Templates
 		
 		protected void SetSmallIcon(int col, int row)
 		{
-			Bitmap icon = (Bitmap)Resources.Instance.LoadPIC((Settings.Instance.GraphicsMode == GraphicsMode.Graphics256 ? "SP299" : "SPRITES")).GetPart(160 + (19 * col), 50 + (10 * row), 20, 10).Clone();
+			Picture icon = Resources.Instance.LoadPIC((Settings.Instance.GraphicsMode == GraphicsMode.Graphics256 ? "SP299" : "SPRITES")).GetPart(160 + (19 * col), 50 + (10 * row), 20, 10);
 			Picture.ReplaceColours(icon, 0, 5);
 			SmallIcon = new Picture(20, 10);
 			SmallIcon.FillRectangle(5, 0, 0, 20, 10);
@@ -121,6 +129,8 @@ namespace CivOne.Templates
 		{
 			Price = price;
 			Maintenance = maintenance;
+			BuyPrice = (short)(40 * price);
+			SellPrice = (short)(10 * price);
 		}
 	}
 }

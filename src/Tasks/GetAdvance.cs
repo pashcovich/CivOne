@@ -9,7 +9,6 @@
 
 using System;
 using CivOne.Interfaces;
-using CivOne.Screens;
 
 namespace CivOne.Tasks
 {
@@ -53,7 +52,7 @@ namespace CivOne.Tasks
 		{
 			_advance = advance;
 			_player = player;
-			_human = (Game.Instance.HumanPlayer == player);
+			_human = (Human == player);
 		}
 	}
 }

@@ -7,9 +7,8 @@
 // You should have received a copy of the CC0 legalcode along with this
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
-using System.Drawing;
 using System.Linq;
-using CivOne.Enums;
+using CivOne.Governments;
 using CivOne.GFX;
 using CivOne.Interfaces;
 using CivOne.Units;
@@ -21,7 +20,7 @@ namespace CivOne.Screens
 	{
 		private readonly City _city;
 
-		private readonly Bitmap _background;
+		private readonly Picture _background;
 		
 		private bool _update = true;
 		
@@ -43,20 +42,19 @@ namespace CivOne.Screens
 					if (!(units[i] is Diplomat) || (units[i] is Caravan))
 					{
 						int shields = 0, food = 0;
-						switch (Game.Instance.GetPlayer(_city.Owner).Government)
+						IGovernment government = Game.GetPlayer(_city.Owner).Government;
+						if (government is Anarchy || government is Despotism)
 						{
-							case Government.Anarchy:
-							case Government.Despotism:
-								if (i >= _city.Size)
-									shields++;
-								if (units[i] is Settlers)
-									food++;
-								break;
-							default:
+							if (i >= _city.Size)
 								shields++;
-								if (units[i] is Settlers)
-									food += 2;
-								break;
+							if (units[i] is Settlers)
+								food++;
+						}
+						else
+						{
+							shields++;
+							if (units[i] is Settlers)
+								food += 2;
 						}
 						if (food > 0)
 						{
@@ -77,17 +75,12 @@ namespace CivOne.Screens
 			return true;
 		}
 
-		public void Close()
-		{
-			Destroy();
-		}
-
-		public CityUnits(City city, Bitmap background)
+		public CityUnits(City city, Picture background)
 		{
 			_city = city;
 			_background = background;
 
-			_canvas = new Picture(124, 38, background.Palette.Entries);
+			_canvas = new Picture(124, 38, background.Palette);
 		}
 	}
 }

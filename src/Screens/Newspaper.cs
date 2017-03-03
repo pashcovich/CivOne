@@ -8,12 +8,9 @@
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 using System;
-using System.Drawing;
 using System.Linq;
-using CivOne.Advances;
 using CivOne.Enums;
 using CivOne.Events;
-using CivOne.Interfaces;
 using CivOne.IO;
 using CivOne.GFX;
 using CivOne.Templates;
@@ -26,7 +23,6 @@ namespace CivOne.Screens
 
 		public void Close()
 		{
-			HandleClose();
 			Destroy();
 		}
 		
@@ -56,31 +52,31 @@ namespace CivOne.Screens
 		{
 			Cursor = MouseCursor.None;
 
-			bool modernGovernment = Game.Instance.HumanPlayer.Advances.Any(a => a.Id == (int)Advance.Invention);
-			Color[] palette = Resources.Instance.LoadPIC("SP257").Image.Palette.Entries;
+			bool modernGovernment = Human.Advances.Any(a => a.Id == (int)Advance.Invention);
+			Color[] palette = Resources.Instance.LoadPIC("SP257").Palette;
 
-			Bitmap[] governmentPortraits = new Bitmap[4];
+			Picture[] governmentPortraits = new Picture[4];
 			if (showGovernment)
 			{
 				for (int i = 0; i < 4; i++)
 				{
-					governmentPortraits[i] = Icons.GovernmentPortrait(Game.Instance.HumanPlayer.Government, (Advisor)Enum.Parse(typeof(Advisor), i.ToString()), modernGovernment);
+					governmentPortraits[i] = Icons.GovernmentPortrait(Human.Government, (Advisor)Enum.Parse(typeof(Advisor), i.ToString()), modernGovernment);
 				}
 
 				for (int i = 144; i < 256; i++)
 				{
-					palette[i] = governmentPortraits[0].Palette.Entries[i];
+					palette[i] = governmentPortraits[0].Palette[i];
 				}
 			}
 			
 			string newsflash = TextFile.Instance.GetGameText($"KING/NEWS{(char)Common.Random.Next((int)'A', (int)'O')}")[0];
 			string shout = (Common.Random.Next(0, 2) == 0) ? "FLASH" : "EXTRA!";
-			string date = $"January 1, {Common.YearString(Game.Instance.GameTurn)}";
+			string date = $"January 1, {Common.YearString(Game.GameTurn)}";
 			string name = "NONE";
 			if (city != null)
 				name = city.Name;
-			else if (Game.Instance.HumanPlayer.Cities.Length > 0)
-				name = Game.Instance.HumanPlayer.Cities[0].Name;
+			else if (Human.Cities.Length > 0)
+				name = Human.Cities[0].Name;
 			switch (Common.Random.Next(0, 3))
 			{
 				case 0: name = $"The {name} Times"; break;
@@ -124,11 +120,11 @@ namespace CivOne.Screens
 			}
 			else
 			{
-				for (int xx = 0; xx < _canvas.Image.Width; xx += Icons.Newspaper.Width)
+				for (int xx = 0; xx < _canvas.Width; xx += Icons.Newspaper.Width)
 				{
 					AddLayer(Icons.Newspaper, xx, 100);
 				}
-				Bitmap background = Resources.Instance.GetPart("SP299", 288, 120, 32, 16);
+				Picture background = Resources.Instance.GetPart("SP299", 288, 120, 32, 16);
 				Picture dialog = new Picture(152, 15);
 				dialog.FillLayerTile(background);
 				dialog.FillRectangle(0, 151, 0, 1, 15);

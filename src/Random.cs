@@ -253,12 +253,12 @@ namespace CivOne
 			return _ax + min;
 		}
 		
-		public Random(int seed = -1, int seed2 = 0)
+		public Random(int seed = -1)
 		{
-			if (seed < 0)
-				seed = ((int)DateTime.Now.Ticks & 0xFFFF);
+			if (seed == -1)
+				seed = (int)DateTime.Now.Ticks;
 			DS5BDA = (short)seed;
-			DS5BDC = (short)seed2;
+			DS5BDC = (short)((seed & 0xFFFF0000) >> 16);
 			_initialSeed = (short)seed;
 			_stack = new Stack<short>();
 			_counter = 0;

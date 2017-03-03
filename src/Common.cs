@@ -9,11 +9,11 @@
 
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
-using CivOne.Civilizations;
+using CivOne.Enums;
+using CivOne.GFX;
 using CivOne.Interfaces;
 
 namespace CivOne
@@ -23,7 +23,15 @@ namespace CivOne
 		public static Random Random = new Random((int)DateTime.Now.Ticks);
 		
 		public static IAdvance[] Advances = Reflect.GetAdvances().ToArray();
-		public static ICivilization[] Civilizations = new ICivilization[] { new Roman(), new Babylonian(), new German(), new Egyptian(), new American(), new Greek(), new Indian(), new Russian(), new Zulu(), new French(), new Aztec(), new Chinese(), new English(), new Mongol(), new Barbarian() };
+		public static IBuilding[] Buildings = Reflect.GetBuildings().ToArray();
+		public static IWonder[] Wonders = Reflect.GetWonders().ToArray();
+		public static ICivilization[] Civilizations
+		{
+			get
+			{
+				return Reflect.GetCivilizations().ToArray();
+			}
+		}
 		public static byte[] ColourLight = new byte[] { 12, 15, 10, 9, 14, 11, 13, 7 };
 		public static byte[] ColourDark = new byte[] { 4, 7, 2, 1, 10, 3, 4, 8 };
 		
@@ -59,6 +67,16 @@ namespace CivOne
 				return Common.Screens.LastOrDefault();
 			}
 		}
+
+		internal static void SetRandomSeedFromName(string name)
+		{
+			short number = 0;
+			foreach (byte charByte in name)
+			{
+				number += charByte;
+			}
+			SetRandomSeed(number);
+		}
 		
 		internal static void SetRandomSeed(short seed)
 		{
@@ -75,13 +93,9 @@ namespace CivOne
 			_screens.Remove(screen);
 		}
 		
-		internal static bool HasScreenType(Type type)
+		internal static bool HasScreenType<T>() where T : IScreen
 		{
-			foreach (IScreen screen in _screens)
-			{
-				if (screen.GetType() == type) return true;
-			}
-			return false;
+			return _screens.Any(x => x is T);
 		}
 		
 		internal static string CaptureFilename
@@ -90,7 +104,7 @@ namespace CivOne
 			{
 				for (int i = 1; i < 99999; i++)
 				{
-					string filename = Path.Combine(Settings.Instance.CaptureDirectory, string.Format("capture{0:00000}.png", i));
+					string filename = Path.Combine(Settings.Instance.CaptureDirectory, $"capture{i:00000}.gif");
 					if (File.Exists(filename)) continue;
 					return filename;
 				}
@@ -126,6 +140,16 @@ namespace CivOne
 				_reloadSettings = value;
 			}
 		}
+
+		public static ushort YearToTurn(int year)
+		{
+			if (year < -4000) return 0;
+			if (year < 1000) return (ushort)Math.Floor(((double)year + 4000) / 20);
+			if (year < 1500) return (ushort)Math.Floor(((double)year + 1500) / 10);
+			if (year < 1750) return (ushort)Math.Floor(((double)year) / 5);
+			if (year < 1850) return (ushort)Math.Floor(((double)year - 1050) / 2);
+			return (ushort)(year - 1450);
+		}
 		
 		public static int TurnToYear(ushort turn)
 		{
@@ -144,6 +168,15 @@ namespace CivOne
 			if (year < 0)
 				return string.Format("{0} BC", -year);
 			return string.Format("{0} AD", year);
+		}
+
+		internal static int CitizenGroup(Citizen citizen)
+		{
+			int output = (int)citizen;
+			output -= (output % 2);
+			output /= 2;
+			if (output > 3) output = 3;
+			return output;
 		}
 		
 		public static bool InCityRange(int x1, int y1, int x2, int y2)
@@ -168,6 +201,13 @@ namespace CivOne
 			if (reader.BaseStream.Position != position)
 				reader.BaseStream.Seek(position, SeekOrigin.Begin);
 			return reader.ReadUInt16();
+		}
+		
+		public static byte[] BinaryReadBytes(BinaryReader reader, int position, int count)
+		{
+			if (reader.BaseStream.Position != position)
+				reader.BaseStream.Seek(position, SeekOrigin.Begin);
+			return reader.ReadBytes(count);
 		}
 		
 		private static string[] BytesToArray(byte[] bytes, int maxLength)
@@ -203,24 +243,41 @@ namespace CivOne
 					_palette16 = new Color[]
 					{
 						Color.Transparent,
-						Color.FromArgb(shades[0], shades[0], shades[2]),
-						Color.FromArgb(shades[0], shades[2], shades[0]),
-						Color.FromArgb(shades[0], shades[2], shades[2]),
-						Color.FromArgb(shades[2], shades[0], shades[0]),
-						Color.FromArgb(shades[0], shades[0], shades[0]),
-						Color.FromArgb(shades[2], shades[1], shades[0]),
-						Color.FromArgb(shades[2], shades[2], shades[2]),
-						Color.FromArgb(shades[1], shades[1], shades[1]),
-						Color.FromArgb(shades[1], shades[1], shades[3]),
-						Color.FromArgb(shades[1], shades[3], shades[1]),
-						Color.FromArgb(shades[1], shades[3], shades[3]),
-						Color.FromArgb(shades[3], shades[1], shades[1]),
-						Color.FromArgb(shades[3], shades[1], shades[3]),
-						Color.FromArgb(shades[3], shades[3], shades[1]),
-						Color.FromArgb(shades[3], shades[3], shades[3]),
+						new Color(shades[0], shades[0], shades[2]),
+						new Color(shades[0], shades[2], shades[0]),
+						new Color(shades[0], shades[2], shades[2]),
+						new Color(shades[2], shades[0], shades[0]),
+						new Color(shades[0], shades[0], shades[0]),
+						new Color(shades[2], shades[1], shades[0]),
+						new Color(shades[2], shades[2], shades[2]),
+						new Color(shades[1], shades[1], shades[1]),
+						new Color(shades[1], shades[1], shades[3]),
+						new Color(shades[1], shades[3], shades[1]),
+						new Color(shades[1], shades[3], shades[3]),
+						new Color(shades[3], shades[1], shades[1]),
+						new Color(shades[3], shades[1], shades[3]),
+						new Color(shades[3], shades[3], shades[1]),
+						new Color(shades[3], shades[3], shades[3]),
 					};
 				}
 				return _palette16;
+			}
+		}
+
+		private static Color[] _palette256;
+		public static Color[] GetPalette256
+		{
+			get
+			{
+				if (_palette256 == null)
+				{
+					_palette256 = new Color[256];
+					for (int i = 0; i < 256; i++)
+					{
+						_palette256[i] = GetPalette16[i % 16];
+					}
+				}
+				return _palette256;
 			}
 		}
 	}

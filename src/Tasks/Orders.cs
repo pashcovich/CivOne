@@ -8,7 +8,7 @@
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 using System;
-using System.Linq;
+using CivOne.Advances;
 using CivOne.Interfaces;
 using CivOne.IO;
 using CivOne.Screens;
@@ -49,13 +49,15 @@ namespace CivOne.Tasks
 		{
 			if (_unit != null)
 			{
-				Game.Instance.DisbandUnit(_unit);
+				Game.DisbandUnit(_unit);
 			}
 			EndTask();
 		}
 
 		private void CityViewed(object sender, EventArgs args)
 		{
+			if (Common.HasScreenType<CityManager>()) return;
+
 			CityManager cityManager = new CityManager(_city);
 			cityManager.Closed += CityManagerClosed;
 			Common.AddScreen(cityManager);
@@ -82,10 +84,10 @@ namespace CivOne.Tasks
 
 		private void CreateCity(string name)
 		{
-			_city = Game.Instance.AddCity(_player, name, _x, _y); 
+			_city = Game.AddCity(_player, name, _x, _y); 
 			if (_city != null)
 			{
-				if (_player.Human)
+				if (_player.IsHuman)
 				{
 					CityView cityView = new CityView(_city, founded: true);
 					cityView.Closed += CityFounded;
@@ -95,7 +97,7 @@ namespace CivOne.Tasks
 				}
 				if (_unit != null)
 				{
-					Game.Instance.DisbandUnit(_unit);
+					Game.DisbandUnit(_unit);
 				}
 			}
 			EndTask();
@@ -103,8 +105,8 @@ namespace CivOne.Tasks
 
 		private void CreateCity(Player player, int x, int y)
 		{
-			string name = Game.Instance.CityName(player);
-			if (player.Human)
+			string name = Game.CityName(player);
+			if (player.IsHuman)
 			{
 				CityName cityName = new CityName(name);
 				cityName.Accept += CityNameAccept;
@@ -133,20 +135,26 @@ namespace CivOne.Tasks
 				_y = settlers.Y;
 			}
 
-			if (Map.Instance[_x, _y].City != null)
+			if (Map[_x, _y].IsOcean)
+			{
+				EndTask();
+				return;
+			}
+
+			if (Map[_x, _y].City != null)
 			{
 				// There is already a city here
 				if (_unit is Settlers)
 				{
-					if (Map.Instance[_x, _y].City.Size >= 10)
+					if (Map[_x, _y].City.Size >= 10)
 					{
 						// City is 10 or larger, can not join city
 						Error("ADDCITY");
 						EndTask();
 						return;
 					}
-					Map.Instance[_x, _y].City.Size++;
-					Game.Instance.DisbandUnit(_unit);
+					Map[_x, _y].City.Size++;
+					Game.DisbandUnit(_unit);
 				}
 				EndTask();
 				return;
@@ -187,7 +195,10 @@ namespace CivOne.Tasks
 				EndTask();
 				return;
 			}
-			(_unit as Settlers).BuildFortress();
+			if (Game.GetPlayer(_unit.Owner).HasAdvance<Construction>())
+			{
+				(_unit as Settlers).BuildFortress();
+			}
 			EndTask();
 		}
 
@@ -205,7 +216,7 @@ namespace CivOne.Tasks
 
 		private void UnitWait()
 		{
-			Game.Instance.UnitWait();
+			Game.UnitWait();
 			EndTask();
 		}
 
@@ -280,7 +291,7 @@ namespace CivOne.Tasks
 			return new Orders()
 			{
 				_unit = unit,
-				_order = Order.Irrigate
+				_order = Order.Fortress
 			};
 		}
 

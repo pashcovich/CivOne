@@ -7,66 +7,36 @@
 // You should have received a copy of the CC0 legalcode along with this
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
-using CivOne.Interfaces;
+using CivOne.Leaders;
+using CivOne.Templates;
 
 namespace CivOne.Civilizations
 {
-	internal class Egyptian : ICivilization
+	internal class Egyptian : BaseCivilization<Ramesses>
 	{
-		public string Name
+		public Egyptian() : base(4, 4, "Egyptian", "Egyptians")
 		{
-			get { return "Egyptian"; }
-		}
-
-		public string NamePlural
-		{
-			get { return "Egyptians"; }
-		}
-
-		public string LeaderName
-		{
-			get { return "Ramesses"; }
-		}
-
-		public byte PreferredPlayerNumber
-		{
-			get { return 4; }
-		}
-
-		public byte StartX
-		{
-			get { return 41; }
-		}
-
-		public byte StartY
-		{
-			get { return 24; }
-		}
-		
-		public string[] CityNames
-		{
-			get
+			StartX = 41;
+			StartY = 24;
+			CityNames = new string[]
 			{
-				return new string[]
-				{
-					"Thebes",
-					"Memphis",
-					"Oryx",
-					"Heliopolis",
-					"Gaza",
-					"Alexandria",
-					"Byblos",
-					"Cairo",
-					"Coptos",
-					"Edfu",
-					"Pithom",
-					"Busirus",
-					"Athribus",
-					"Mendes",
-					"Tanis",
-					"Abydos"
-				};
-			}
+				"Thebes",
+				"Memphis",
+				"Oryx",
+				"Heliopolis",
+				"Gaza",
+				"Alexandria",
+				"Byblos",
+				"Cairo",
+				"Coptos",
+				"Edfu",
+				"Pithom",
+				"Busirus",
+				"Athribus",
+				"Mendes",
+				"Tanis",
+				"Abydos"
+			};
 		}
 	}
 }

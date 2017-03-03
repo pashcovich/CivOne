@@ -7,8 +7,6 @@
 // You should have received a copy of the CC0 legalcode along with this
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
-using System;
-using System.Drawing;
 using CivOne.Enums;
 using CivOne.GFX;
 using CivOne.IO;
@@ -32,7 +30,8 @@ namespace CivOne.Screens
 			
 			if (_textLines.Length <= _currentLine)
 			{
-				Environment.Exit(0);
+				Common.Quit();
+				return true;
 			}
 			
 			AddLayer(_background);
@@ -50,14 +49,13 @@ namespace CivOne.Screens
 			Cursor = MouseCursor.None;
 			
 			_background = Resources.Instance.LoadPIC("ARCH");
-			_canvas = new Picture(320, 200, _background.Image.Palette.Entries);
+			_canvas = new Picture(320, 200, _background.Palette);
 			AddLayer(_background);
 			
 			// Load text and replace strings
-			Player humanPlayer = Game.Instance.HumanPlayer;
 			_textLines = TextFile.Instance.GetGameText("KING/ARCH");
 			for (int i = 0; i < _textLines.Length; i++)
-				_textLines[i] = _textLines[i].Replace("$RPLC1", humanPlayer.LatestAdvance).Replace("$US", humanPlayer.LeaderName.ToUpper()).Replace("^", "");
+				_textLines[i] = _textLines[i].Replace("$RPLC1", Human.LatestAdvance).Replace("$US", Human.LeaderName.ToUpper()).Replace("^", "");
 		}
 	}
 }

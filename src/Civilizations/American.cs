@@ -7,66 +7,36 @@
 // You should have received a copy of the CC0 legalcode along with this
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
-using CivOne.Interfaces;
+using CivOne.Leaders;
+using CivOne.Templates;
 
 namespace CivOne.Civilizations
 {
-	internal class American : ICivilization
+	internal class American : BaseCivilization<Lincoln>
 	{
-		public string Name
+		public American() : base(5, 5, "American", "Americans")
 		{
-			get { return "American"; }
-		}
-
-		public string NamePlural
-		{
-			get { return "Americans"; }
-		}
-
-		public string LeaderName
-		{
-			get { return "Abe Lincoln"; }
-		}
-
-		public byte PreferredPlayerNumber
-		{
-			get { return 5; }
-		}
-
-		public byte StartX
-		{
-			get { return 12; }
-		}
-
-		public byte StartY
-		{
-			get { return 18; }
-		}
-		
-		public string[] CityNames
-		{
-			get
+			StartX = 12;
+			StartY = 18;
+			CityNames = new string[]
 			{
-				return new string[]
-				{
-					"Washington",
-					"New York",
-					"Boston",
-					"Philadelphia",
-					"Atlanta",
-					"Chicago",
-					"Buffalo",
-					"St. Louis",
-					"Detroit",
-					"New Orleans",
-					"Baltimore",
-					"Denver",
-					"Cincinnati",
-					"Dallas",
-					"Los Angeles",
-					"Las Vegas"
-				};
-			}
+				"Washington",
+				"New York",
+				"Boston",
+				"Philadelphia",
+				"Atlanta",
+				"Chicago",
+				"Buffalo",
+				"St. Louis",
+				"Detroit",
+				"New Orleans",
+				"Baltimore",
+				"Denver",
+				"Cincinnati",
+				"Dallas",
+				"Los Angeles",
+				"Las Vegas"
+			};
 		}
 	}
 }

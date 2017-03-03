@@ -8,12 +8,11 @@
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 using System;
-using System.Drawing;
-using System.Linq;
 using CivOne.Enums;
 using CivOne.Events;
 using CivOne.GFX;
 using CivOne.Interfaces;
+using CivOne.Screens.Dialogs;
 using CivOne.Templates;
 
 namespace CivOne.Screens
@@ -22,22 +21,18 @@ namespace CivOne.Screens
 	{
 		private readonly City _city;
 
-		private readonly Bitmap _background;
+		private readonly Picture _background;
 		
 		private bool _update = true;
-		
-		private void DrawButton(string text, int x, int width, bool blink = false)
-		{
-			_canvas.FillRectangle(7, x + 0, 7, width, 1);
-			_canvas.FillRectangle(7, x + 0, 8, 1, 8);
-			_canvas.FillRectangle(1, x + 1, 15, width - 1, 1);
-			_canvas.FillRectangle(1, x + width - 1, 7, 1, 8);
-			_canvas.FillRectangle((byte)(blink ? 14 : 9), x + 1, 8, width - 2, 7);
-			_canvas.DrawText(text, 1, 1, x + (int)Math.Ceiling((double)width / 2), 9, TextAlign.Center);
-		}
 
 		private void ForceUpdate(object sender, EventArgs args)
 		{
+			_update = true;
+		}
+
+		private void AcceptBuy(object sender, EventArgs args)
+		{
+			_city.Buy();
 			_update = true;
 		}
 
@@ -70,11 +65,11 @@ namespace CivOne.Screens
 			{
 				if (_city.CurrentProduction is IBuilding)
 				{
-					return _city.Buildings.Any(b => b.Id == (_city.CurrentProduction as IBuilding).Id); 
+					return _city.HasBuilding(_city.CurrentProduction as IBuilding);
 				}
 				if (_city.CurrentProduction is IWonder)
 				{
-					return Game.Instance.BuiltWonders.Any(w => w.Id == (_city.CurrentProduction as IWonder).Id); 
+					return Game.WonderBuilt(_city.CurrentProduction as IWonder);
 				}
 				return false;
 			}
@@ -103,11 +98,10 @@ namespace CivOne.Screens
 				{
 					_canvas.FillRectangle(5, 0, 19 + height, width, 80 - height);
 				}
-				bool blink = false;
-				if (ProductionInvalid)
-					blink = (gameTick % 4 > 1);
-				DrawButton("Change", 1, 33, blink);
-				DrawButton("Buy", 64, 18);
+				bool blink = ProductionInvalid && (gameTick % 4 > 1);
+				if (!(Common.TopScreen is CityManager)) blink = ProductionInvalid;
+				DrawButton("Change", (byte)(blink ? 14 : 9), 1, 1, 7, 33);
+				DrawButton("Buy", 9, 1, 64, 7, 18);
 
 				DrawShields();
 
@@ -131,6 +125,11 @@ namespace CivOne.Screens
 			return true;
 		}
 
+		public void Update()
+		{
+			_update = true;
+		}
+
 		private bool Change()
 		{
 			CityChooseProduction cityProductionMenu = new CityChooseProduction(_city);
@@ -141,8 +140,18 @@ namespace CivOne.Screens
 
 		private bool Buy()
 		{
-			_city.Buy();
-			_update = true;
+			string name = (_city.CurrentProduction as ICivilopedia).Name;
+			short playerGold = Game.CurrentPlayer.Gold;
+			short buyPrice = _city.BuyPrice;
+			if (playerGold < buyPrice)
+			{
+				Common.AddScreen(new MessageBox("Cost to complete", $"{name}: ${buyPrice}", $"Treasury: ${playerGold}"));
+				return true;
+			}
+
+			ConfirmBuy confirmBuy = new ConfirmBuy(name, buyPrice, playerGold);
+			confirmBuy.Buy += AcceptBuy;
+			Common.AddScreen(confirmBuy);
 			return true;
 		}
 		
@@ -174,17 +183,12 @@ namespace CivOne.Screens
 			return false;
 		}
 
-		public void Close()
-		{
-			Destroy();
-		}
-
-		public CityProduction(City city, Bitmap background)
+		public CityProduction(City city, Picture background)
 		{
 			_city = city;
 			_background = background;
 
-			_canvas = new Picture(88, 99, background.Palette.Entries);
+			_canvas = new Picture(88, 99, background.Palette);
 		}
 	}
 }

@@ -8,15 +8,16 @@
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 using System;
-using System.Drawing;
 using System.Linq;
 using CivOne.Enums;
 using CivOne.GFX;
+using CivOne.Interfaces;
+using CivOne.IO;
 using CivOne.Templates;
 
 namespace CivOne.Screens
 {
-	internal class Setup : BaseScreen
+	internal class Setup : BaseScreen, IExpand
 	{
 		private const int MenuFont = 6;
 		
@@ -27,7 +28,7 @@ namespace CivOne.Screens
 			if (!_update) return false;
 			_update = false;
 			
-			if (Menus.Count == 0)
+			if (!HasMenu)
 			{
 				MainMenu();
 			}
@@ -38,10 +39,10 @@ namespace CivOne.Screens
 		private int GetMenuWidth(string title, string[] items)
 		{
 			int i = 0;
-			Bitmap[] texts = new Bitmap[items.Length + 1];
+			Picture[] texts = new Picture[items.Length + 1];
 			texts[i++] = Resources.Instance.GetText(" " + title, MenuFont, 15);
 			foreach (string item in items)
-				texts[i++] = Resources.Instance.GetText(" " + item, MenuFont, 5);			
+				texts[i++] = Resources.Instance.GetText(" " + item, MenuFont, 5);
 			return (texts.Select(t => t.Width).Max()) + 6;
 		}
 		
@@ -52,11 +53,11 @@ namespace CivOne.Screens
 			return menuItems * Resources.Instance.GetFontHeight(MenuFont);
 		}
 		
-		private Menu AddMenu(string title, EventHandler setChoice, params string[] menuTexts)
+		private Menu CreateMenu(string title, EventHandler setChoice, params string[] menuTexts)
 		{
 			int width = GetMenuWidth(title, menuTexts);
 			int height = GetMenuHeight(title, menuTexts);
-			Menu menu = new Menu(Canvas.Image.Palette.Entries)
+			Menu menu = new Menu(Canvas.Palette)
 			{
 				Title = title,
 				X = (320 - width) / 2,
@@ -76,45 +77,50 @@ namespace CivOne.Screens
 				menu.Items.Add(menuItem = new Menu.Item(menuTexts[i], i));
 				menuItem.Selected += setChoice;
 			}
-			Menus.Add(menu);
 			return menu;
 		}
 		
 		private void MainMenu(int activeItem = 0)
 		{
-			Menu menu = AddMenu("CIVONE SETUP:", MainChoice, "Settings", "Patches", "Mods", "Launch Game", "Quit");
-			menu.Items[1].Enabled = false; // Patches: Not yet implemented
+			Menu menu = CreateMenu("CIVONE SETUP:", MainChoice, "Settings", "Patches", "Mods", "Launch Game", "Quit");
 			menu.Items[2].Enabled = false; // Mods: Not yet implemented
 			menu.ActiveItem = activeItem;
-			Common.AddScreen(menu);
+			AddMenu(menu);
 		}
 		
 		private void SettingsMenu(int activeItem = 0)
 		{
-			Settings settings = Settings.Instance; 
-			string graphicsMode, fullScreen, sideBar, scale, revealWorld;
-			switch (settings.GraphicsMode)
+			string graphicsMode, fullScreen, scale, aspectRatio;
+			switch (Settings.GraphicsMode)
 			{
 				case GraphicsMode.Graphics256: graphicsMode = "256 colors"; break;
 				case GraphicsMode.Graphics16: graphicsMode = "16 colors"; break;
 				default: graphicsMode = "unknown"; break;
 			}
+
+			switch (Settings.AspectRatio)
+			{
+				case AspectRatio.Fixed: aspectRatio = "Fixed"; break;
+				case AspectRatio.Scaled: aspectRatio = "Scaled (blurry)"; break;
+				case AspectRatio.ScaledFixed: aspectRatio = "Scaled and fixed (blurry)"; break;
+				case AspectRatio.Expand: aspectRatio = "Expand (experimental)"; break;
+				default: aspectRatio = "Automatic"; break;
+			}
 			
 			graphicsMode = string.Format("Graphics Mode: {0}", graphicsMode);
-			fullScreen = string.Format("Full Screen: {0}", settings.FullScreen ? "yes" : "no");
-			sideBar = string.Format("Side bar location: {0}", settings.RightSideBar ? "right" : "left");
-			scale = string.Format("Window scale: {0}x", settings.Scale);
-			revealWorld = string.Format("Reveal World: {0}", settings.RevealWorld ? "yes" : "no");
+			fullScreen = string.Format("Full Screen: {0}", Settings.FullScreen ? "yes" : "no");
+			scale = string.Format("Window scale: {0}x", Settings.Scale);
+			aspectRatio = string.Format("Aspect ratio: {0}", aspectRatio);
 			
-			Menu menu = AddMenu("SETTINGS:", SettingsChoice, graphicsMode, fullScreen, sideBar, scale, revealWorld, "Back");
+			Menu menu = CreateMenu("SETTINGS:", SettingsChoice, graphicsMode, fullScreen, scale, aspectRatio, "Back");
 			menu.ActiveItem = activeItem;
-			Common.AddScreen(menu);
+			AddMenu(menu);
 		}
 		
 		private void GraphicsModeMenu()
 		{
-			Menu menu = AddMenu("GRAPHICS MODE:", GraphicsModeChoice, "256 colors (default)", "16 colors", "Back");
-			switch (Settings.Instance.GraphicsMode)
+			Menu menu = CreateMenu("GRAPHICS MODE:", GraphicsModeChoice, "256 colors (default)", "16 colors", "Back");
+			switch (Settings.GraphicsMode)
 			{
 				case GraphicsMode.Graphics256: 
 					menu.ActiveItem = 0;
@@ -123,35 +129,81 @@ namespace CivOne.Screens
 					menu.ActiveItem = 1;
 					break;
 			}
-			Common.AddScreen(menu);
+			AddMenu(menu);
 		}
 		
 		private void FullScreenMenu()
 		{
-			Menu menu = AddMenu("FULL SCREEN:", FullScreenChoice, "No (default)", "Yes", "Back");
-			menu.ActiveItem = Settings.Instance.FullScreen ? 1 : 0;
-			Common.AddScreen(menu);
-		}
-		
-		private void SideBarMenu()
-		{
-			Menu menu = AddMenu("SIDE BAR LOCATION:", SideBarChoice, "Left (default)", "Right", "Back");
-			menu.ActiveItem = Settings.Instance.RightSideBar ? 1 : 0;
-			Common.AddScreen(menu);
+			Menu menu = CreateMenu("FULL SCREEN:", FullScreenChoice, "No (default)", "Yes", "Back");
+			menu.ActiveItem = Settings.FullScreen ? 1 : 0;
+			AddMenu(menu);
 		}
 		
 		private void WindowScaleMenu()
 		{
-			Menu menu = AddMenu("WINDOW SCALE:", WindowScaleChoice, "1x", "2x", "3x", "4x", "Back");
-			menu.ActiveItem = Settings.Instance.Scale - 1;
-			Common.AddScreen(menu);
+			Menu menu = CreateMenu("WINDOW SCALE:", WindowScaleChoice, "1x", "2x", "3x", "4x", "Back");
+			menu.ActiveItem = Settings.Scale - 1;
+			AddMenu(menu);
+		}
+		
+		private void AspectRatioMenu()
+		{
+			Menu menu = CreateMenu("ASPECT RATIO:", AspectRatioChoice, "Automatic", "Fixed", "Scaled (blurry)", "Scaled and fixed (blurry)", "Expand (experimental)", "Back");
+			menu.ActiveItem = (int)Settings.AspectRatio;
+			AddMenu(menu);
+		}
+		
+		private void PatchesMenu(int activeItem = 0)
+		{
+			string revealWorld, sideBar, debugMenu, cursorType;
+			switch (Settings.CursorType)
+			{
+				case CursorType.Builtin: cursorType = "Built-in"; break;
+				case CursorType.Native: cursorType = "Native"; break;
+				default: cursorType = "Default"; break;
+			}
+
+			revealWorld = $"Reveal World: {(Settings.RevealWorld ? "yes" : "no")}";
+			sideBar = $"Side bar location: {(Settings.RightSideBar ? "right" : "left")}";
+			debugMenu = $"Show debug menu: {(Settings.DebugMenu ? "yes" : "no")}";
+			cursorType = $"Mouse cursor type: {cursorType}";
+			
+			Menu menu = CreateMenu("PATCHES:", PatchesChoice, revealWorld, sideBar, debugMenu, cursorType, "Back");
+			menu.ActiveItem = activeItem;
+			AddMenu(menu);
 		}
 		
 		private void RevealWorldMenu()
 		{
-			Menu menu = AddMenu("REVEAL WORLD:", RevealWorldChoice, "No (default)", "Yes", "Back");
-			menu.ActiveItem = Settings.Instance.RevealWorld ? 1 : 0;
-			Common.AddScreen(menu);
+			Menu menu = CreateMenu("REVEAL WORLD:", RevealWorldChoice, "No (default)", "Yes", "Back");
+			menu.ActiveItem = Settings.RevealWorld ? 1 : 0;
+			AddMenu(menu);
+		}
+		
+		private void SideBarMenu()
+		{
+			Menu menu = CreateMenu("SIDE BAR LOCATION:", SideBarChoice, "Left (default)", "Right", "Back");
+			menu.ActiveItem = Settings.RightSideBar ? 1 : 0;
+			AddMenu(menu);
+		}
+		
+		private void DebugMenuMenu()
+		{
+			Menu menu = CreateMenu("SHOW DEBUG MENU:", DebugMenuChoice, "No (default)", "Yes", "Back");
+			menu.ActiveItem = Settings.DebugMenu ? 1 : 0;
+			AddMenu(menu);
+		}
+
+		private void CursorTypeMenu()
+		{
+			Menu menu = CreateMenu("MOUSE CURSOR TYPE:", CursorTypeChoice, "Default", "Built-in", "Native", "Back");
+			menu.ActiveItem = (int)Settings.CursorType;
+			if (menu.ActiveItem == (int)CursorType.Default && !FileSystem.DataFilesExist(FileSystem.MouseCursorFiles))
+			{
+				menu.ActiveItem = (int)CursorType.Builtin;
+			}
+			menu.Items[0].Enabled = (FileSystem.DataFilesExist(FileSystem.MouseCursorFiles));
+			AddMenu(menu);
 		}
 		
 		private void MainChoice(object sender, EventArgs args)
@@ -163,7 +215,9 @@ namespace CivOne.Screens
 					CloseMenus();
 					SettingsMenu();
 					break;
-				case 1: // Patches: Not yet implemented
+				case 1: // Patches
+					CloseMenus();
+					PatchesMenu();
 					return;
 				case 2: // Mods: Not yet implemented
 					return;
@@ -190,16 +244,13 @@ namespace CivOne.Screens
 				case 1: // Full Screen
 					FullScreenMenu();
 					break;
-				case 2: // Side bar
-					SideBarMenu();
-					break;
-				case 3: // Scale
+				case 2: // Scale
 					WindowScaleMenu();
 					break;
-				case 4: // Reveal World
-					RevealWorldMenu();
+				case 3: // Aspect Ratio
+					AspectRatioMenu();
 					break;
-				case 5: // Back
+				case 4: // Back
 					MainMenu();
 					break;
 			}
@@ -212,10 +263,10 @@ namespace CivOne.Screens
 			switch (choice)
 			{
 				case 0: // 256 colours
-					Settings.Instance.GraphicsMode = GraphicsMode.Graphics256;
+					Settings.GraphicsMode = GraphicsMode.Graphics256;
 					break;
 				case 1: // 16 colours
-					Settings.Instance.GraphicsMode = GraphicsMode.Graphics16;
+					Settings.GraphicsMode = GraphicsMode.Graphics16;
 					break;
 			}
 			SettingsMenu(0);
@@ -227,30 +278,14 @@ namespace CivOne.Screens
 			switch (choice)
 			{
 				case 0: // no
-					Settings.Instance.FullScreen = false;
+					Settings.FullScreen = false;
 					break;
 				case 1: // yes
-					Settings.Instance.FullScreen = true;
+					Settings.FullScreen = true;
 					break;
 			}
 			CloseMenus();
 			SettingsMenu(1);
-		}
-		
-		private void SideBarChoice(object sender, EventArgs args)
-		{
-			int choice = (sender as Menu.Item).Value;
-			switch (choice)
-			{
-				case 0: // left
-					Settings.Instance.RightSideBar = false;
-					break;
-				case 1: // right
-					Settings.Instance.RightSideBar = true;
-					break;
-			}
-			CloseMenus();
-			SettingsMenu(2);
 		}
 		
 		private void WindowScaleChoice(object sender, EventArgs args)
@@ -258,10 +293,45 @@ namespace CivOne.Screens
 			int choice = (sender as Menu.Item).Value;
 			if (choice < 4)
 			{
-				Settings.Instance.Scale = (choice + 1);
+				Settings.Scale = (choice + 1);
+			}
+			CloseMenus();
+			SettingsMenu(2);
+		}
+
+		private void AspectRatioChoice(object sender, EventArgs args)
+		{
+			int choice = (sender as Menu.Item).Value;
+			if (choice < 5)
+			{
+				Settings.AspectRatio = (AspectRatio)(choice);
 			}
 			CloseMenus();
 			SettingsMenu(3);
+		}
+
+		private void PatchesChoice(object sender, EventArgs args)
+		{
+			CloseMenus();
+			int choice = (sender as Menu.Item).Value;
+			switch (choice)
+			{
+				case 0: // Reveal World
+					RevealWorldMenu();
+					break;
+				case 1: // Side bar
+					SideBarMenu();
+					break;
+				case 2: // Debug Menu
+					DebugMenuMenu();
+					break;
+				case 3: // Cursor Type
+					CursorTypeMenu();
+					break;
+				case 4: // Back
+					MainMenu(1);
+					break;
+			}
 		}
 		
 		private void RevealWorldChoice(object sender, EventArgs args)
@@ -270,23 +340,86 @@ namespace CivOne.Screens
 			switch (choice)
 			{
 				case 0: // no
-					Settings.Instance.RevealWorld = false;
+					Settings.RevealWorld = false;
 					break;
 				case 1: // yes
-					Settings.Instance.RevealWorld = true;
+					Settings.RevealWorld = true;
 					break;
 			}
 			CloseMenus();
-			SettingsMenu(4);
+			PatchesMenu(0);
+		}
+		
+		private void SideBarChoice(object sender, EventArgs args)
+		{
+			int choice = (sender as Menu.Item).Value;
+			switch (choice)
+			{
+				case 0: // left
+					Settings.RightSideBar = false;
+					break;
+				case 1: // right
+					Settings.RightSideBar = true;
+					break;
+			}
+			CloseMenus();
+			PatchesMenu(1);
+		}
+		
+		private void DebugMenuChoice(object sender, EventArgs args)
+		{
+			int choice = (sender as Menu.Item).Value;
+			switch (choice)
+			{
+				case 0: // left
+					Settings.DebugMenu = false;
+					break;
+				case 1: // right
+					Settings.DebugMenu = true;
+					break;
+			}
+			CloseMenus();
+			PatchesMenu(2);
+		}
+		
+		private void CursorTypeChoice(object sender, EventArgs args)
+		{
+			int choice = (sender as Menu.Item).Value;
+			switch (choice)
+			{
+				case 0:
+					Settings.CursorType = CursorType.Default;
+					break;
+				case 1:
+					Settings.CursorType = CursorType.Builtin;
+					break;
+				case 2:
+					Settings.CursorType = CursorType.Native;
+					break;
+			}
+			CloseMenus();
+			PatchesMenu(3);
+		}
+
+		public void Resize(int width, int height)
+		{
+			_canvas = new Picture(width, height, _canvas.Palette);
+			_canvas.FillRectangle(3, 0, 0, width, height);
+
+			foreach (Menu menu in Common.Screens.Where(x => x is Menu))
+			{
+				int menuHeight = GetMenuHeight(menu.Title, menu.Items.Select(x => x.Text).ToArray());
+
+				menu.X = (width - menu.Width) / 2;
+				menu.Y = (height - menuHeight) / 2;
+			}
 		}
 		
 		public Setup()
 		{
 			Cursor = MouseCursor.Pointer;
 			
-			Color[] palette = Resources.Instance.LoadPIC("SP257").Image.Palette.Entries;
-			
-			_canvas = new Picture(320, 200, palette);
+			_canvas = new Picture(320, 200, Common.GetPalette256);
 			_canvas.FillRectangle(3, 0, 0, 320, 200);
 		}
 	}

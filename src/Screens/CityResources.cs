@@ -7,11 +7,8 @@
 // You should have received a copy of the CC0 legalcode along with this
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
-using System.Drawing;
-using System.Linq;
 using CivOne.Enums;
 using CivOne.GFX;
-using CivOne.Interfaces;
 using CivOne.Templates;
 
 namespace CivOne.Screens
@@ -20,7 +17,7 @@ namespace CivOne.Screens
 	{
 		private readonly City _city;
 
-		private readonly Bitmap _background;
+		private readonly Picture _background;
 		
 		private bool _update = true;
 
@@ -121,17 +118,12 @@ namespace CivOne.Screens
 			_update = true;
 		}
 
-		public void Close()
-		{
-			Destroy();
-		}
-
-		public CityResources(City city, Bitmap background)
+		public CityResources(City city, Picture background)
 		{
 			_city = city;
 			_background = background;
 
-			_canvas = new Picture(124, 43, background.Palette.Entries);
+			_canvas = new Picture(124, 43, background.Palette);
 		}
 	}
 }

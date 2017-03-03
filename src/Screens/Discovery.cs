@@ -7,10 +7,7 @@
 // You should have received a copy of the CC0 legalcode along with this
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
-using System;
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.Linq;
+using CivOne.Advances;
 using CivOne.Enums;
 using CivOne.Events;
 using CivOne.GFX;
@@ -33,16 +30,16 @@ namespace CivOne.Screens
 			int r = (int)(((float)colour1.R * (1.0F - _fadeStep)) + ((float)colour2.R * _fadeStep));
 			int g = (int)(((float)colour1.G * (1.0F - _fadeStep)) + ((float)colour2.G * _fadeStep));
 			int b = (int)(((float)colour1.B * (1.0F - _fadeStep)) + ((float)colour2.B * _fadeStep));
-			return Color.FromArgb(r, g, b);
+			return new Color(r, g, b);
 		}
 		
 		private void FadeColours()
 		{
-			if (Settings.Instance.GraphicsMode != GraphicsMode.Graphics256) return;
+			if (Settings.GraphicsMode != GraphicsMode.Graphics256) return;
 			
-			ColorPalette palette = _canvas.Image.Palette;
+			Color[] palette = _canvas.Palette;
 			for (int i = 86; i < 256; i++)
-				palette.Entries[i] = FadeColour(_canvas.OriginalColours[i], _advance.Icon.OriginalColours[i]);
+				palette[i] = FadeColour(_canvas.OriginalColours[i], _advance.Icon.OriginalColours[i]);
 			_canvas.SetPalette(palette);
 		}
 		
@@ -63,38 +60,33 @@ namespace CivOne.Screens
 		public override bool KeyDown(KeyboardEventArgs args)
 		{
 			if (_fadeStep >= 1.0F)
-				Close();
+				Destroy();
 			return true;
 		}
 		
 		public override bool MouseDown(ScreenEventArgs args)
 		{
 			if (_fadeStep >= 1.0F)
-				Close();
+				Destroy();
 			return true;
-		}
-
-		private void Close()
-		{
-			HandleClose();
-			Destroy();
 		}
 		
 		public Discovery(IAdvance advance)
 		{
 			_advance = advance;
-			_modern = Game.Instance.HumanPlayer.Advances.Any(a => a.Id == (int)Advance.Electricity);
+			_modern = Human.HasAdvance<Electricity>() && advance.Not<Electricity>();
+			string scientistName = Human.HasAdvance<Invention>() && (advance.Not<Invention>()) ? "scientists" : "wise men";
 
 			Picture background = Resources.Instance.LoadPIC(_modern ? "DISCOVR2" : "DISCOVR1");
 			
-			_canvas = new Picture(320, 200, background.Image.Palette.Entries);
+			_canvas = new Picture(320, 200, background.Palette);
 			_canvas.FillRectangle(32, 0, 0, 320, 200);
 
 			AddLayer(background);
 
 			string[] text = new string[]
 			{
-				$"{Game.Instance.HumanPlayer.TribeName} wise men",
+				$"{Human.TribeName} {scientistName}",
 				"discover the secret",
 				$"of {advance.Name}!"
 			};

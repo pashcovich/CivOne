@@ -8,7 +8,6 @@
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 using System;
-using System.Drawing;
 using CivOne.Enums;
 using CivOne.GFX;
 using CivOne.Interfaces;
@@ -76,11 +75,19 @@ namespace CivOne.Templates
 		
 		public IAdvance RequiredTech { get; protected set; }
 		public IAdvance ObsoleteTech { get; protected set; }
+		public short BuyPrice { get; private set; }
+		public byte ProductionId
+		{
+			get
+			{
+				return (byte)(Math.Abs((int)Type - 232));
+			}
+		}
 		public byte Price { get; protected set; }
 		
 		protected void SetSmallIcon(int col, int row)
 		{
-			Bitmap icon = (Bitmap)Resources.Instance.LoadPIC((Settings.Instance.GraphicsMode == GraphicsMode.Graphics256 ? "SP299" : "SPRITES")).GetPart(160 + (19 * col), 50 + (10 * row), 20, 10).Clone();
+			Picture icon = Resources.Instance.LoadPIC((Settings.Instance.GraphicsMode == GraphicsMode.Graphics256 ? "SP299" : "SPRITES")).GetPart(160 + (19 * col), 50 + (10 * row), 20, 10);
 			Picture.ReplaceColours(icon, 0, 5);
 			SmallIcon = new Picture(20, 10);
 			SmallIcon.FillRectangle(5, 0, 0, 20, 10);
@@ -100,6 +107,7 @@ namespace CivOne.Templates
 		protected BaseWonder(byte price = 1)
 		{
 			Price = price;
+			BuyPrice = (short)(80 * price);
 		}
 	}
 }

@@ -63,7 +63,15 @@ namespace CivOne.Tasks
 				return;
 			}
 
-			Discovery discovery = new Discovery(_player.CurrentResearch);
+			IScreen discovery;
+			if (Settings.Animations)
+			{
+				discovery = new Discovery(_player.CurrentResearch);
+			}
+			else
+			{
+				discovery = new Newspaper(null, new string[] { $"{_player.TribeName} wise men", "discover the secret", $"of {_player.CurrentResearch.Name}!" }, showGovernment: false);
+			}
 			discovery.Closed += ClosedDiscovery;
 			Common.AddScreen(discovery);
 		}
@@ -71,7 +79,7 @@ namespace CivOne.Tasks
 		public ProcessScience(Player player)
 		{
 			_player = player;
-			_human = (Game.Instance.HumanPlayer == player);
+			_human = (Human == player);
 		}
 	}
 }

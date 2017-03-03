@@ -8,7 +8,6 @@
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 using System;
-using System.Drawing;
 using System.Linq;
 using System.Text;
 using CivOne.Enums;
@@ -31,9 +30,9 @@ namespace CivOne.Screens
 		private string _leaderName = null, _tribeName = null, _tribeNamePlural = null;
 		private bool _done = false, _showIntroText = false;
 		
-		private Menu AddMenu(string title, EventHandler setChoice, params string[] menuTexts)
+		private Menu CreateMenu(string title, EventHandler setChoice, params string[] menuTexts)
 		{
-			Menu menu = new Menu(Canvas.Image.Palette.Entries)
+			Menu menu = new Menu(Canvas.Palette)
 			{
 				Title = title,
 				X = 163,
@@ -54,33 +53,37 @@ namespace CivOne.Screens
 				menu.Items.Add(menuItem = new Menu.Item(menuTexts[i], i));
 				menuItem.Selected += setChoice;
 			}
-			Menus.Add(menu);
 			return menu;
 		}
 		
 		private void MenuDifficulty()
 		{
-			Common.AddScreen(AddMenu("Difficulty Level...", SetDifficulty, _menuItemsDifficulty));
+			AddMenu(CreateMenu("Difficulty Level...", SetDifficulty, _menuItemsDifficulty));
 		}
 		
 		private void MenuCompetition()
 		{
-			Common.AddScreen(AddMenu("Level of Competition...", SetCompetition, _menuItemsCompetition));
+			AddMenu(CreateMenu("Level of Competition...", SetCompetition, _menuItemsCompetition));
 		}
 		
 		private void MenuTribe()
 		{
-			Menu menu = AddMenu("Pick your tribe...", SetTribe, _menuItemsTribes);
+			Menu menu = CreateMenu("Pick your tribe...", SetTribe, _menuItemsTribes);
+			if (_menuItemsTribes.Length > 14)
+			{
+				menu.FontId = 1;
+				menu.RowHeight -= 2;
+			}
 			menu.Cancel += SetTribe_Cancel;
-			Common.AddScreen(menu);
+			AddMenu(menu);
 		}
 		
 		private void InputLeaderName()
 		{
-			if (Common.HasScreenType(typeof(Input))) return;
+			if (Common.HasScreenType<Input>()) return;
 			
 			ICivilization civ = _tribesAvailable[_tribe];
-			Input input = new Input(_canvas.Image.Palette.Entries, civ.LeaderName, 6, 5, 11, 168, 105, 109, 10, 13);
+			Input input = new Input(_canvas.Palette, civ.Leader.Name, 6, 5, 11, 168, 105, 109, 10, 13);
 			input.Accept += LeaderName_Accept;
 			input.Cancel += LeaderName_Accept;
 			Common.AddScreen(input);
@@ -123,7 +126,7 @@ namespace CivOne.Screens
 			CloseMenus();
 			
 			ICivilization civ = _tribesAvailable[_tribe];
-			Input input = new Input(_canvas.Image.Palette.Entries, civ.NamePlural, 6, 5, 11, 168, 105, 109, 10, 11);
+			Input input = new Input(_canvas.Palette, civ.NamePlural, 6, 5, 11, 168, 105, 109, 10, 11);
 			input.Accept += TribeName_Accept;
 			input.Cancel += TribeName_Accept;
 			Common.AddScreen(input);
@@ -146,7 +149,7 @@ namespace CivOne.Screens
 			((Input)sender).Close();
 		}
 		
-		private Bitmap DifficultyPicture
+		private Picture DifficultyPicture
 		{
 			get
 			{
@@ -167,7 +170,7 @@ namespace CivOne.Screens
 		
 		public override bool HasUpdate(uint gameTick)
 		{
-			if (Menus.Count != 0) return false;
+			if (HasMenu) return false;
 			
 			if (_difficulty == -1) MenuDifficulty();
 			else if (_competition == -1) MenuCompetition();
@@ -180,13 +183,13 @@ namespace CivOne.Screens
 				ICivilization civ = _tribesAvailable[_tribe];
 				Game.CreateGame(_difficulty, _competition, civ, _leaderName, _tribeName, _tribeNamePlural);
 				
-				Bitmap[] borders = new Bitmap[8];
+				Picture[] borders = new Picture[8];
 				int index = 0;
 				for (int y = 0; y < 2; y++)
 				{
 					for (int x = 0; x < 4; x++)
 					{
-						borders[index] = (Bitmap)Resources.Instance.GetPart("SP299", 224 + (8 * x), 120 + (8 * y), 8, 8).Clone();
+						borders[index] = Resources.Instance.GetPart("SP299", 224 + (8 * x), 120 + (8 * y), 8, 8);
 						index++;
 					}
 				}
@@ -212,14 +215,14 @@ namespace CivOne.Screens
 				int yy = 81;
 				foreach (string textLine in TextFile.Instance.GetGameText("KING/INIT"))
 				{
-					string line = textLine.Replace("$RPLC1", Game.Instance.HumanPlayer.LeaderName).Replace("$US", Game.Instance.HumanPlayer.TribeNamePlural).Replace("^", "");
+					string line = textLine.Replace("$RPLC1", Human.LeaderName).Replace("$US", Human.TribeNamePlural).Replace("^", "");
 					_canvas.DrawText(line, 0, 5, 88, yy);
 					yy += 8;
 					Console.WriteLine(line);
 				}
 				StringBuilder sb = new StringBuilder();
 				int i = 0;
-				foreach (IAdvance advance in Game.Instance.HumanPlayer.Advances.OrderBy(a => a.Id))
+				foreach (IAdvance advance in Human.Advances.OrderBy(a => a.Id))
 				{
 					sb.Append($"{advance.Name}, ");
 					i++;
@@ -243,9 +246,17 @@ namespace CivOne.Screens
 			else
 			{
 				Destroy();
-				Common.AddScreen(new GamePlay());
-				if (Game.Instance.Difficulty == 0)
+
+				GamePlay gamePlay = new GamePlay();
+				Common.AddScreen(gamePlay);
+				IUnit startUnit = Game.GetUnits().First(x => x.Owner == Game.PlayerNumber(Game.Human));
+				gamePlay.CenterOnPoint(startUnit.X, startUnit.Y);
+				
+				if (Game.Difficulty == 0)
+				{
+					GameTask.Enqueue(Show.InterfaceHelp);
 					GameTask.Enqueue(Message.Help("--- Civilization Note ---", TextFile.Instance.GetGameText("HELP/FIRSTMOVE")));
+				}
 				return true;
 			}
 			
@@ -256,7 +267,7 @@ namespace CivOne.Screens
 			}
 			
 			// Draw background
-			_canvas = new Picture(320, 200, _background.Image.Palette.Entries);
+			_canvas = new Picture(320, 200, _background.Palette);
 			if (_difficulty == -1)
 			{
 				AddLayer(_background);
@@ -288,7 +299,7 @@ namespace CivOne.Screens
 				if (args.Key == Key.Enter)
 				{
 					ICivilization civ = _tribesAvailable[_tribe];
-					_leaderName = civ.LeaderName;
+					_leaderName = civ.Leader.Name;
 					return true;
 				}
 				return false;
@@ -311,7 +322,7 @@ namespace CivOne.Screens
 			
 			_background = Resources.Instance.LoadPIC("DIFFS");
 			
-			_canvas = new Picture(320, 200, _background.Image.Palette.Entries);
+			_canvas = new Picture(320, 200, _background.Palette);
 			AddLayer(_background);
 			
 			_menuItemsDifficulty = new[] { "Chieftain (easiest)", "Warlord", "Prince", "King", "Emperor (toughest)" };

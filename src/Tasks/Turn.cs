@@ -7,9 +7,6 @@
 // You should have received a copy of the CC0 legalcode along with this
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
-using System;
-using System.Linq;
-using System.Threading;
 using CivOne.Interfaces;
 using CivOne.Screens;
 
@@ -17,9 +14,25 @@ namespace CivOne.Tasks
 {
 	internal class Turn : GameTask, IFast
 	{
+		private const int TURN_TIME = 10;
+
 		private ITurn _turnObject = null;
 		private IUnit _unit = null;
 		private bool _endTurn = false;
+
+		private Player _gameOver = null;
+
+		private int _step = 0;
+
+		protected override bool Step()
+		{
+			if (_endTurn && _step-- <= 0)
+			{
+				Game.EndTurn();
+				EndTask();
+			}
+			return true;
+		}
 
 		public override void Run()
 		{
@@ -33,7 +46,25 @@ namespace CivOne.Tasks
 			}
 			else if (_endTurn)
 			{
-				Game.Instance.EndTurn();
+				if (Game.PlayerNumber(Game.CurrentPlayer) == Game.PlayerNumber(Human))
+				{
+					_step = TURN_TIME;
+					return;
+				}
+				Game.EndTurn();
+				EndTask();
+				return;
+			}
+			else if (_gameOver != null)
+			{
+				if (_gameOver.IsHuman)
+				{
+					Common.AddScreen(new GameOver());
+				}
+				else
+				{
+					// TODO: Spawn barbarians or respawn civilization
+				}
 			}
 			EndTask();
 			return;
@@ -60,6 +91,14 @@ namespace CivOne.Tasks
 			return new Turn()
 			{
 				_endTurn = true
+			};
+		}
+
+		public static Turn GameOver(Player player)
+		{
+			return new Turn()
+			{
+				_gameOver = player
 			};
 		}
 

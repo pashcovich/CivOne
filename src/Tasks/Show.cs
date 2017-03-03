@@ -11,6 +11,7 @@ using System;
 using System.Linq;
 using CivOne.Interfaces;
 using CivOne.Screens;
+using CivOne.Screens.Dialogs;
 
 namespace CivOne.Tasks
 {
@@ -37,12 +38,20 @@ namespace CivOne.Tasks
 			}
 		}
 
+		public static Show InterfaceHelp
+		{
+			get
+			{
+				return new Show(Overlay.InterfaceHelp);
+			}
+		}
+
 		public static Show Terrain
 		{
 			get
 			{
 				GamePlay gamePlay = (GamePlay)Common.Screens.First(s => (s is GamePlay));
-				return new Show(Overlay.Terrain(gamePlay.X, gamePlay.Y));
+				return new Show(Overlay.TerrainView(gamePlay.X, gamePlay.Y));
 			}
 		}
 
@@ -55,11 +64,29 @@ namespace CivOne.Tasks
 			}
 		}
 
-		public static Show Options
+		public static Show TaxRate
 		{
 			get
 			{
-				return new Show(new GameOptions());
+				return new Show(SetRate.Taxes);
+			}
+		}
+
+		public static Show LuxuryRate
+		{
+			get
+			{
+				return new Show(SetRate.Luxuries);
+			}
+		}
+
+		public static Show AutoSave
+		{
+			get
+			{
+				if (Game.GameTurn % 50 != 0) return null;
+				int gameId = ((Game.GameTurn / 50) % 6) + 4;
+				return new Show(new SaveGame(gameId));
 			}
 		}
 
@@ -71,6 +98,50 @@ namespace CivOne.Tasks
 		public static Show UnitStack(int x, int y)
 		{
 			return new Show(new UnitStack(x, y));
+		}
+
+		public static Show Search
+		{
+			get
+			{
+				Search search = new Search();
+				search.Accept += (s, a) =>
+				{
+					City city = (s as Search).City;
+					if (city == null) return;
+					GamePlay gamePlay = (GamePlay)Common.Screens.First(x => x.GetType() == typeof(GamePlay));
+					gamePlay.CenterOnPoint(city.X, city.Y);
+				};
+				return new Show(search);
+			}
+		}
+
+		public static Show ChooseGovernment
+		{
+			get
+			{
+				ChooseGovernment chooseGovernment = new ChooseGovernment();
+				chooseGovernment.Closed += (s, a) => {
+					Human.Government = (s as ChooseGovernment).Result;
+					GameTask.Insert(Message.NewGoverment(null, $"{Human.TribeName} government", $"changed to {Human.Government.Name}!"));
+				};
+				return new Show(chooseGovernment);
+			}
+		}
+
+		public static Show DestroyUnit(IUnit unit)
+		{
+			return new Show(new DestroyUnit(unit));
+		}
+
+		public static Show CaptureCity(City city)
+		{
+			return new Show(CityView.Capture(city));
+		}
+
+		public static Show Screen<T>() where T : IScreen, new()
+		{
+			return new Show(new T());
 		}
 
 		private Show(IScreen screen)

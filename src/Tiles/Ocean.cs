@@ -7,9 +7,7 @@
 // You should have received a copy of the CC0 legalcode along with this
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
-using System.Drawing;
 using CivOne.Enums;
-using CivOne.GFX;
 using CivOne.Templates;
 
 namespace CivOne.Tiles
@@ -52,9 +50,17 @@ namespace CivOne.Tiles
 		{
 			get
 			{
-				return (sbyte)(2 + (RepublicDemocracy ? 1 : 0) + (Road ? 1 : 0));
+				return (sbyte)(BaseTrade + SpecialTrade);
 			}
 		}
+
+		public override sbyte BaseTrade		
+		{
+			get
+			{
+				return (sbyte)(2 + (RepublicDemocratic ? 1 : 0) + (Road ? 1 : 0));
+			}
+		}		
 		
 		public override sbyte IrrigationFoodBonus
 		{

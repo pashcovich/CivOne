@@ -9,7 +9,7 @@
 
 using System;
 using System.Collections.Generic;
-using System.Drawing;
+using System.Linq;
 using CivOne.Enums;
 using CivOne.Events;
 using CivOne.GFX;
@@ -22,7 +22,7 @@ namespace CivOne.Screens
 	{
 		private readonly City _city;
 
-		private readonly Bitmap _background;
+		private readonly Picture _background;
 
 		private readonly CityHeader _cityHeader;
 		private readonly CityResources _cityResources;
@@ -43,7 +43,6 @@ namespace CivOne.Screens
 		{
 			_cityHeader.Close();
 			Destroy();
-			HandleClose();
 		}
 		
 		private void DrawLayer(IScreen layer, uint gameTick, int x, int y)
@@ -55,6 +54,12 @@ namespace CivOne.Screens
 		
 		public override bool HasUpdate(uint gameTick)
 		{
+			if (Common.Screens.Count(x => x is CityManager) > 1)
+			{
+				Destroy();
+				return false;
+			}
+
 			if (_cityHeader.HasUpdate(gameTick)) _update = true;
 			if (_cityResources.HasUpdate(gameTick)) _update = true;
 			if (_cityUnits.HasUpdate(gameTick)) _update = true;
@@ -75,18 +80,21 @@ namespace CivOne.Screens
 				DrawLayer(_cityInfo, gameTick, 95, 106);
 				DrawLayer(_cityProduction, gameTick, 230, 99);
 
-				// Draw exit button
-				_canvas.FillRectangle(7, 284, 190, 33, 1);
-				_canvas.FillRectangle(7, 284, 191, 1, 8);
-				_canvas.FillRectangle(4, 285, 198, 32, 1);
-				_canvas.FillRectangle(4, 316, 190, 1, 8);
-				_canvas.FillRectangle(12, 285, 191, 31, 7);
-				_canvas.DrawText("Exit", 1, 4, 302, 192, TextAlign.Center);
+				DrawButton("Rename", 9, 1, 231, 190, 42);
+				DrawButton("Exit", 12, 4, 284, 190, 33);
 
 				_update = false;
 				return true;
 			}
 			return false;
+		}
+
+		private void CityRename(object sender, EventArgs args)
+		{
+			if (!(sender is CityName)) return;
+
+			_city.Name = (sender as CityName).Value;
+			_cityHeader.Update();
 		}
 		
 		public override bool KeyDown(KeyboardEventArgs args)
@@ -104,6 +112,19 @@ namespace CivOne.Screens
 		{
 			_mouseDown = true;
 			
+			if (new Rectangle(231, 190, 42, 10).Contains(args.Location))
+			{
+				// Rename button
+				CityName name = new CityName(_city.Name);
+				name.Accept += CityRename;
+				Common.AddScreen(name);
+				return true;
+			}
+			if (new Rectangle(2, 1, 208, 21).Contains(args.Location))
+			{
+				MouseArgsOffset(ref args, 2, 1);
+				return _cityHeader.MouseDown(args);
+			}
 			if (new Rectangle(127, 23, 82, 82).Contains(args.Location))
 			{
 				MouseArgsOffset(ref args, 127, 23);
@@ -113,6 +134,12 @@ namespace CivOne.Screens
 			{
 				MouseArgsOffset(ref args, 95, 106);
 				return _cityInfo.MouseDown(args);
+			}
+			if (new Rectangle(211, 1, 107, 97).Contains(args.Location))
+			{
+				MouseArgsOffset(ref args, 211, 1);
+				if (_cityBuildings.MouseDown(args))
+					return true;
 			}
 			if (new Rectangle(230, 99, 88, 99).Contains(args.Location))
 			{
@@ -136,6 +163,19 @@ namespace CivOne.Screens
 			return false;
 		}
 
+		private void BuildingUpdate(object sender, EventArgs args)
+		{
+			_cityFoodStorage.Update();
+			_cityHeader.Update();
+			_cityMap.Update();
+			_cityProduction.Update();
+		}
+
+		private void HeaderUpdate(object sender, EventArgs args)
+		{
+			_cityResources.Update();
+		}
+
 		private void MapUpdate(object sender, EventArgs args)
 		{
 			_cityHeader.Update();
@@ -145,12 +185,12 @@ namespace CivOne.Screens
 		public CityManager(City city)
 		{
 			_city = city;
-			_background = (Bitmap)Resources.Instance.GetPart("SP299", 288, 120, 32, 16).Clone();
+			_background = Resources.Instance.GetPart("SP299", 288, 120, 32, 16);
 			Picture.ReplaceColours(_background, new byte[] { 7, 22 }, new byte[] { 57, 9 });
 
 			Cursor = MouseCursor.Pointer;
 			
-			Color[] palette = Resources.Instance.LoadPIC("SP257").Image.Palette.Entries;
+			Color[] palette = Resources.Instance.LoadPIC("SP257").Palette;
 			
 			_canvas = new Picture(320, 200, palette);
 			_canvas.FillRectangle(5, 0, 0, 320, 200);
@@ -164,6 +204,8 @@ namespace CivOne.Screens
 			_subScreens.Add(_cityInfo = new CityInfo(_city, _background));
 			_subScreens.Add(_cityProduction = new CityProduction(_city, _background));
 
+			_cityBuildings.BuildingUpdate += BuildingUpdate;
+			_cityHeader.HeaderUpdate += HeaderUpdate;
 			_cityMap.MapUpdate += MapUpdate;
 		}
 	}

@@ -20,6 +20,8 @@ namespace CivOne.Tasks
 
 		private void ClosedCityView(object sender, EventArgs args)
 		{
+			if (Common.HasScreenType<CityManager>()) return;
+			
 			CityManager cityManager = new CityManager(_city);
 			cityManager.Closed += (s, a) => EndTask();
 			Common.AddScreen(cityManager);
@@ -27,8 +29,19 @@ namespace CivOne.Tasks
 
 		public override void Run()
 		{
-			CityView cityView;
-			if (_improvement is IBuilding)
+			if (_city.Owner != Game.PlayerNumber(Human))
+			{
+				Console.WriteLine($"{_city.Name} builds {(_improvement as ICivilopedia).Name}.");
+				EndTask();
+				return;
+			}
+
+			IScreen cityView;
+			if (!Settings.Animations)
+			{
+				cityView = new Newspaper(_city, new string[] { $"{_city.Name} builds", $"{(_improvement as ICivilopedia).Name}." }, showGovernment: false);
+			}
+			else if (_improvement is IBuilding)
 			{
 				cityView = new CityView(_city, production: (_improvement as IBuilding));
 			}

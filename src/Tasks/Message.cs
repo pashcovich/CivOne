@@ -8,10 +8,10 @@
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 using System;
-using System.Linq;
 using CivOne.Enums;
 using CivOne.Interfaces;
 using CivOne.Screens;
+using CivOne.Screens.Dialogs;
 
 namespace CivOne.Tasks
 {
@@ -35,6 +35,11 @@ namespace CivOne.Tasks
 			return new Message(new AdvisorMessage(advisor, message));
 		}
 
+		public static Message DisbandUnit(City city, IUnit unit)
+		{
+			return new Message(new DisbandUnit(city, unit));
+		}
+
 		public static Message NewGoverment(City city, params string[] message)
 		{
 			return new Message(new Newspaper(city, message, showGovernment: true));
@@ -45,9 +50,9 @@ namespace CivOne.Tasks
 			return new Message(new Newspaper(city, message, showGovernment: false));
 		}
 
-		public static Message TribalHut(params string[] message)
+		public static Message General(params string[] message)
 		{
-			return new Message(new TribalHut(message));
+			return new Message(new MessageBox(message));
 		}
 
 		public static Message Help(string title, params string[] message)

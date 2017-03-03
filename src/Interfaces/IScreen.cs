@@ -8,7 +8,6 @@
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 using System;
-using System.Drawing;
 using CivOne.Enums;
 using CivOne.Events;
 using CivOne.GFX;
@@ -26,5 +25,6 @@ namespace CivOne.Interfaces
 		bool MouseDown(ScreenEventArgs args);
 		bool MouseUp(ScreenEventArgs args);
 		bool MouseDrag(ScreenEventArgs args);
+		bool MouseMove(ScreenEventArgs args);
 	}
 }

@@ -7,9 +7,7 @@
 // You should have received a copy of the CC0 legalcode along with this
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
-using System;
 using CivOne.Interfaces;
-using CivOne.Screens;
 
 namespace CivOne.Tasks
 {
@@ -28,7 +26,7 @@ namespace CivOne.Tasks
 		{
 			get
 			{
-				return Game.Instance.ActiveUnit;
+				return Game.ActiveUnit;
 			}
 		}
 
@@ -45,7 +43,7 @@ namespace CivOne.Tasks
 
 		public override void Run()
 		{
-			if (ActiveUnit == null || (!Settings.Instance.RevealWorld && !Game.Instance.HumanPlayer.Visible(ActiveUnit.X, ActiveUnit.Y)))
+			if (ActiveUnit == null || (!Settings.RevealWorld && !Human.Visible(ActiveUnit.X, ActiveUnit.Y)))
 			{
 				// Off screen? End task immediately
 				EndTask();

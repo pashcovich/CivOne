@@ -13,20 +13,23 @@ using CivOne.Enums;
 
 namespace CivOne
 {
-	internal class Settings
+	public class Settings
 	{
 		// Set default settings
 		private GraphicsMode _graphicsMode = GraphicsMode.Graphics256;
 		private bool _fullScreen = false;
 		private bool _rightSideBar = false;
 		private int _scale = 2;
+		private AspectRatio _aspectRatio = AspectRatio.Auto;
 		private bool _revealWorld = false;
+		private bool _debugMenu = false;
+		private CursorType _cursorType = CursorType.Default;
 		
 		internal string BinDirectory
 		{
 			get
 			{
-				return new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory).Parent.FullName;
+				return Directory.GetCurrentDirectory();
 			}
 		}
 		
@@ -46,6 +49,14 @@ namespace CivOne
 			}
 		}
 		
+		internal string PluginsDirectory
+		{
+			get
+			{
+				return Path.Combine(BinDirectory, "plugins");
+			}
+		}
+		
 		internal string SavesDirectory
 		{
 			get
@@ -61,6 +72,8 @@ namespace CivOne
 				return Path.Combine(BinDirectory, "settings");
 			}
 		}
+
+		// Settings
 		
 		internal GraphicsMode GraphicsMode
 		{
@@ -91,20 +104,6 @@ namespace CivOne
 			}
 		}
 		
-		internal bool RightSideBar
-		{
-			get
-			{
-				return _rightSideBar;
-			}
-			set
-			{
-				_rightSideBar = value;
-				SetSetting("SideBar", _rightSideBar ? "1" : "0");
-				Common.ReloadSettings = true;
-			}
-		}
-		
 		internal int Scale
 		{
 			get
@@ -119,6 +118,23 @@ namespace CivOne
 				Common.ReloadSettings = true;
 			}
 		}
+
+		internal AspectRatio AspectRatio
+		{
+			get
+			{
+				return _aspectRatio;
+			}
+			set
+			{
+				_aspectRatio = value;
+				string saveValue = ((int)_aspectRatio).ToString();
+				SetSetting("AspectRatio", saveValue);
+				Common.ReloadSettings = true;
+			}
+		}
+
+		// Patches
 		
 		internal bool RevealWorld
 		{
@@ -133,9 +149,57 @@ namespace CivOne
 				Common.ReloadSettings = true;
 			}
 		}
+		
+		internal bool RightSideBar
+		{
+			get
+			{
+				return _rightSideBar;
+			}
+			set
+			{
+				_rightSideBar = value;
+				SetSetting("SideBar", _rightSideBar ? "1" : "0");
+				Common.ReloadSettings = true;
+			}
+		}
+		
+		internal bool DebugMenu
+		{
+			get
+			{
+				return _debugMenu;
+			}
+			set
+			{
+				_debugMenu = value;
+				SetSetting("DebugMenu", _debugMenu ? "1" : "0");
+				Common.ReloadSettings = true;
+			}
+		}
+		
+		internal CursorType CursorType
+		{
+			get
+			{
+				return _cursorType;
+			}
+			set
+			{
+				_cursorType = value;
+				string saveValue = ((int)_cursorType).ToString();
+				SetSetting("CursorType", saveValue);
+				Common.ReloadSettings = true;
+			}
+		}
 
-		internal bool InstantAdvice { get; set; }
+		// In game settings
+
+		internal bool Animations { get; set; }
+		internal bool CivilopediaText { get; set; }
 		internal bool EndOfTurn { get; set; }
+		internal bool InstantAdvice { get; set; }
+		internal bool AutoSave { get; set; }
 
 		internal void RevealWorldCheat()
 		{
@@ -173,7 +237,8 @@ namespace CivOne
 		{
 			string filename = Path.Combine(SettingsDirectory, settingName);
 			if (!File.Exists(filename)) return null;
-			using (StreamReader sr = new StreamReader(filename))
+			using (FileStream fs = new FileStream(filename, FileMode.Open, FileAccess.Read))
+			using (StreamReader sr = new StreamReader(fs))
 			{
 				string value = sr.ReadToEnd();
 				
@@ -186,7 +251,8 @@ namespace CivOne
 		private void SetSetting(string settingName, string value)
 		{
 			string filename = Path.Combine(SettingsDirectory, settingName);
-			using (StreamWriter sw = new StreamWriter(filename, false))
+			using (FileStream fs = new FileStream(filename, FileMode.Create, FileAccess.Write))
+			using (StreamWriter sw = new StreamWriter(fs))
 			{
 				sw.Write(value);
 				
@@ -196,7 +262,7 @@ namespace CivOne
 		
 		private void CreateDirectories()
 		{
-			foreach (string dir in new[] { CaptureDirectory, DataDirectory, SavesDirectory, SettingsDirectory })
+			foreach (string dir in new[] { CaptureDirectory, DataDirectory, PluginsDirectory, SavesDirectory, SettingsDirectory })
 			if (!Directory.Exists(dir))
 			{
 				Directory.CreateDirectory(dir);
@@ -220,14 +286,20 @@ namespace CivOne
 			bool fullScreen = _fullScreen;
 			bool rightSideBar = _rightSideBar;
 			int scale = _scale;
+			int aspectRatio = (int)_aspectRatio;
 			bool revealWorld = false;
+			bool debugMenu = false;
+			int cursorType = (int)_cursorType;
 			
 			// Read settings
 			Int32.TryParse(GetSetting("GraphicsMode"), out graphicsMode);
 			fullScreen = (GetSetting("FullScreen") == "1");
 			rightSideBar = (GetSetting("SideBar") == "1");
 			Int32.TryParse(GetSetting("Scale"), out scale);
+			Int32.TryParse(GetSetting("AspectRatio"), out aspectRatio);
 			revealWorld = (GetSetting("RevealWorld") == "1");
+			debugMenu = (GetSetting("DebugMenu") == "1");
+			Int32.TryParse(GetSetting("CursorType"), out cursorType);
 			
 			// Set settings
 			if (graphicsMode > 0 && graphicsMode < 3) _graphicsMode = (GraphicsMode)graphicsMode;
@@ -235,10 +307,14 @@ namespace CivOne
 			_rightSideBar = rightSideBar;
 			if (scale < 1 || scale > 4) scale = 2;
 			_scale = scale;
+			_aspectRatio = (AspectRatio)aspectRatio;
 			_revealWorld = revealWorld;
+			_debugMenu = debugMenu;
+			_cursorType = (CursorType)cursorType;
 
 			// Set game options
 			EndOfTurn = false;
+			AutoSave = true;
 		}
 	}
 }

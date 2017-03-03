@@ -8,7 +8,6 @@
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 using System;
-using System.Drawing;
 using System.Linq;
 using CivOne.Enums;
 using CivOne.Events;
@@ -22,7 +21,7 @@ namespace CivOne.Screens
 	{
 		private readonly City _city;
 
-		private readonly Bitmap _background;
+		private readonly Picture _background;
 		
 		private bool _update = true;
 		
@@ -46,7 +45,7 @@ namespace CivOne.Screens
 
 			for (int i = 0; i < count; i++)
 			{
-				Bitmap icon;
+				Picture icon;
 				if (i >= tile.Food + tile.Shield) icon = Icons.Trade;
 				else if (i >= tile.Food) icon = Icons.Shield;
 				else icon = Icons.Food; 
@@ -73,13 +72,22 @@ namespace CivOne.Screens
 					if (tile == null) continue;
 					AddLayer(Resources.Instance.GetTile(tile), (xx * 16) + 1, (yy * 16) + 1);
 					if (tile.City != null)
-						AddLayer(Icons.City(tile.City, smallFont: true), (xx * 16) + 1, (yy * 16) + 1);
-					if (!Settings.Instance.RevealWorld)
 					{
-						if (!HumanPlayer.Visible(tile, Direction.West)) AddLayer(Resources.Instance.GetFog(Direction.West), (xx * 16) + 1, (yy * 16) + 1);
-						if (!HumanPlayer.Visible(tile, Direction.North)) AddLayer(Resources.Instance.GetFog(Direction.North), (xx * 16) + 1, (yy * 16) + 1);
-						if (!HumanPlayer.Visible(tile, Direction.East)) AddLayer(Resources.Instance.GetFog(Direction.East), (xx * 16) + 1, (yy * 16) + 1);
-						if (!HumanPlayer.Visible(tile, Direction.South)) AddLayer(Resources.Instance.GetFog(Direction.South), (xx * 16) + 1, (yy * 16) + 1);
+						AddLayer(Icons.City(tile.City, smallFont: true), (xx * 16) + 1, (yy * 16) + 1);
+					}
+					else if (tile.Units.Any(u => u.Owner != _city.Owner))
+					{
+						IUnit[] units = tile.Units.Where(u => u.Owner != _city.Owner).ToArray();
+						AddLayer(units[0].GetUnit(units[0].Owner), (xx * 16) + 1, (yy * 16) + 1);
+						if (units.Length > 1)
+							AddLayer(units[0].GetUnit(units[0].Owner), (xx * 16), (yy * 16));
+					}
+					if (!Settings.RevealWorld)
+					{
+						if (!Human.Visible(tile, Direction.West)) AddLayer(Resources.Instance.GetFog(Direction.West), (xx * 16) + 1, (yy * 16) + 1);
+						if (!Human.Visible(tile, Direction.North)) AddLayer(Resources.Instance.GetFog(Direction.North), (xx * 16) + 1, (yy * 16) + 1);
+						if (!Human.Visible(tile, Direction.East)) AddLayer(Resources.Instance.GetFog(Direction.East), (xx * 16) + 1, (yy * 16) + 1);
+						if (!Human.Visible(tile, Direction.South)) AddLayer(Resources.Instance.GetFog(Direction.South), (xx * 16) + 1, (yy * 16) + 1);
 					}
 
 					if (_city.OccupiedTile(tile))
@@ -98,6 +106,11 @@ namespace CivOne.Screens
 			}
 			return true;
 		}
+
+		public void Update()
+		{
+			_update = true;
+		}
 		
 		public override bool MouseDown(ScreenEventArgs args)
 		{
@@ -110,17 +123,12 @@ namespace CivOne.Screens
 			return true;
 		}
 
-		public void Close()
-		{
-			Destroy();
-		}
-
-		public CityMap(City city, Bitmap background)
+		public CityMap(City city, Picture background)
 		{
 			_city = city;
 			_background = background;
 
-			_canvas = new Picture(84, 82, background.Palette.Entries);
+			_canvas = new Picture(84, 82, background.Palette);
 		}
 	}
 }

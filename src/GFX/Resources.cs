@@ -9,10 +9,9 @@
 
 using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Imaging;
 using System.IO;
 using CivOne.Enums;
+using CivOne.GFX.ImageFormats;
 using CivOne.Interfaces;
 using CivOne.IO;
 
@@ -21,9 +20,10 @@ namespace CivOne.GFX
 	internal class Resources
 	{
 		private readonly Dictionary<string, Picture> _cache = new Dictionary<string, Picture>();
-		private readonly Dictionary<string, Bitmap> _textCache = new Dictionary<string, Bitmap>();
+		private readonly Dictionary<string, Picture> _textCache = new Dictionary<string, Picture>();
+		private readonly IFont _defaultFont = new DefaultFont();
 		private readonly List<Fontset> _fonts = new List<Fontset>();
-		private readonly Dictionary<Direction, Bitmap> _fog = new Dictionary<Direction, Bitmap>();
+		private readonly Dictionary<Direction, Picture> _fog = new Dictionary<Direction, Picture>();
 		
 		internal void ClearTextCache()
 		{
@@ -33,10 +33,17 @@ namespace CivOne.GFX
 		private void LoadFonts()
 		{
 			byte[] file;
-			using (FileStream fs = new FileStream(Path.Combine(Settings.Instance.DataDirectory, "FONTS.CV"), FileMode.Open))
+			string filename = Path.Combine(Settings.Instance.DataDirectory, "FONTS.CV");
+			if (!File.Exists(filename))
+			{
+				Console.WriteLine("Font file not found, fallback to default font");
+				return;
+			}
+
+			using (FileStream fs = new FileStream(filename, FileMode.Open))
 			{
 				file = new byte[fs.Length];
-				for (int i = 0; i < fs.Length; i++) file[i] = (byte)fs.ReadByte();
+				fs.Read(file, 0, file.Length);
 			}
 			
 			List<ushort> fontOffsets = new List<ushort>();
@@ -52,14 +59,14 @@ namespace CivOne.GFX
 			
 			foreach (ushort offset in fontOffsets)
 			{
-				_fonts.Add(new Fontset(file, offset, LoadPIC("SP257").Image.Palette.Entries));
+				_fonts.Add(new Fontset(file, offset, LoadPIC("SP257").Palette));
 			}
 		}
 		
 		public bool ValidCharacter(int fontId, char c)
 		{
 			byte asciiChar = (byte)c;
-			return (asciiChar >= _fonts[fontId].FirstChar && asciiChar <= _fonts[fontId].LastChar);
+			return (asciiChar >= Font(fontId).FirstChar && asciiChar <= Font(fontId).LastChar);
 		}
 		
 		public Size GetTextSize(int font, string text)
@@ -74,14 +81,16 @@ namespace CivOne.GFX
 			return new Size(width, height);
 		}
 		
-		public Bitmap GetText(string text, int font, byte colour)
+		public Picture GetText(string text, int font, byte colour)
 		{
 			return GetText(text, font, colour, colour);
 		}
 		
-		public Bitmap GetText(string text, int font, byte colourFirstLetter, byte colour)
+		public Picture GetText(string text, int font, byte colourFirstLetter, byte colour)
 		{
-			List<Bitmap> letters = new List<Bitmap>();
+			if (text == null) text = "[MISSING STRING]";
+
+			List<Picture> letters = new List<Picture>();
 			bool isFirstLetter = true;
 			foreach (char c in text)
 			{
@@ -90,18 +99,18 @@ namespace CivOne.GFX
 			}
 			
 			int width = 0, height = 0;
-			foreach (Bitmap letter in letters)
+			foreach (Picture letter in letters)
 			{
 				width += letter.Width + 1;
 				if (height < letter.Height) height = letter.Height;
 			}
 			
-			Bitmap output = new Bitmap(width, height, PixelFormat.Format8bppIndexed);
+			Picture output = new Picture(width, height);
 			
 			int xx = 0;
-			foreach (Bitmap letter in letters)
+			foreach (Picture letter in letters)
 			{
-				output = Picture.Combine(output, letter, new Point(xx, 0));
+				output.AddLayer(letter, xx, 0);
 				xx += letter.Width + 1;
 			}
 			
@@ -114,23 +123,30 @@ namespace CivOne.GFX
 		{
 			return GetLetter(5, font, letter).Size;
 		}
+
+		private IFont Font(int font)
+		{
+			if (font < 0 || (_fonts.Count - 1) < font)
+				return _defaultFont;
+			return _fonts[font];
+		}
 		
 		public int GetFontHeight(int font)
 		{
-			return _fonts[font].FontHeight;
+			return Font(font).FontHeight;
 		}
 		
-		private Bitmap GetLetter(byte colour, int font, char letter)
+		private Picture GetLetter(byte colour, int font, char letter)
 		{
 			string key = string.Format("letter{0}|{1}|{2}", colour, font, letter);
 			if (!_textCache.ContainsKey(key))
 			{
-				_textCache.Add(key, _fonts[font].GetLetter(letter, colour));
+				_textCache.Add(key, Font(font).GetLetter(letter, colour));
 			}
 			return _textCache[key];
 		}
 		
-		public Bitmap GetPart(string filename, int x, int y, int width, int height)
+		public Picture GetPart(string filename, int x, int y, int width, int height)
 		{
 			return LoadPIC(filename).GetPart(x, y, width, height);
 		}
@@ -196,7 +212,7 @@ namespace CivOne.GFX
 				if (_worldMapTiles == null)
 				{
 					Picture sp299 = Resources.Instance.LoadPIC("SP299");
-					_worldMapTiles = new Picture(48, 8, sp299.Image.Palette.Entries);
+					_worldMapTiles = new Picture(48, 8, sp299.Palette);
 					_worldMapTiles.AddLayer(sp299.GetPart(160, 111, 48, 8));
 				}
 				return _worldMapTiles;
@@ -205,7 +221,7 @@ namespace CivOne.GFX
 		
 		public static Color[] PaletteCombine(Color[] palette1, Color[] palette2, byte start = 0, byte end = 255)
 		{
-			Color invisible = Color.FromArgb(252, 84, 252);
+			Color invisible = new Color(252, 84, 252);
 			for (int i = start; i < end; i++)
 			{
 				if (palette2[i] == invisible) continue;
@@ -214,7 +230,7 @@ namespace CivOne.GFX
 			return palette1;
 		}
 		
-		public Bitmap GetTile(ITile tile, bool improvements = true, bool roads = true)
+		public Picture GetTile(ITile tile, bool improvements = true, bool roads = true)
 		{
 			if (Settings.Instance.GraphicsMode == GraphicsMode.Graphics16)
 			{
@@ -223,7 +239,7 @@ namespace CivOne.GFX
 			return TileResources.GetTile256(tile, improvements, roads);
 		}
 
-		public Bitmap GetFog(Direction direction)
+		public Picture GetFog(Direction direction)
 		{
 			if (!_fog.ContainsKey(direction)) return null;
 			return _fog[direction];
@@ -245,10 +261,10 @@ namespace CivOne.GFX
 		private Resources()
 		{
 			LoadFonts();
-			_fog.Add(Direction.West, (Bitmap)GetPart("SP257", 128, 128, 16, 16).Clone());
-			_fog.Add(Direction.South, (Bitmap)GetPart("SP257", 112, 128, 16, 16).Clone());
-			_fog.Add(Direction.East, (Bitmap)GetPart("SP257", 96, 128, 16, 16).Clone());
-			_fog.Add(Direction.North, (Bitmap)GetPart("SP257", 80, 128, 16, 16).Clone());
+			_fog.Add(Direction.West, GetPart("SP257", 128, 128, 16, 16));
+			_fog.Add(Direction.South, GetPart("SP257", 112, 128, 16, 16));
+			_fog.Add(Direction.East, GetPart("SP257", 96, 128, 16, 16));
+			_fog.Add(Direction.North, GetPart("SP257", 80, 128, 16, 16));
 		}
 	}
 }

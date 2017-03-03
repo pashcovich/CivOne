@@ -8,34 +8,31 @@
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 using System;
-using System.Drawing;
 using CivOne.Enums;
 using CivOne.Events;
 using CivOne.GFX;
 using CivOne.Interfaces;
-using CivOne.Units;
+using CivOne.Screens.Dialogs;
+using CivOne.Screens.Reports;
 using CivOne.Tasks;
 using CivOne.Templates;
 
 namespace CivOne.Screens
 {
-	internal class GamePlay : BaseScreen
+	internal class GamePlay : BaseScreen, IExpand
 	{
 		private readonly MenuBar _menuBar;
 		private readonly SideBar _sideBar;
 		private readonly GameMap _gameMap;
 		
-		private readonly Bitmap _menuBackground = Resources.Instance.GetPart("SP299", 288, 120, 32, 16);
+		private readonly Picture _menuBackground = Resources.Instance.GetPart("SP299", 288, 120, 32, 16);
 		
 		private GameMenu _gameMenu = null;
 		private int _menuX, _menuY;
 		private uint _lastGameTick;
 		private bool _update = true;
 		private bool _redraw = false;
-		private bool _rightSideBar = Settings.Instance.RightSideBar;
-		
-		private Point _menuLocation = Point.Empty;
-		private Picture _menuGraphics = null;
+		private bool _rightSideBar;
 
 		private bool _shift5 = false;
 
@@ -60,128 +57,36 @@ namespace CivOne.Screens
 			_gameMap.CenterOnPoint(x, y);
 		}
 		
-		private void MenuCancel(object sender, EventArgs args)
-		{
-			CloseMenus();
-			_menuLocation = Point.Empty;
-			_menuGraphics = null;
-			_update = true;
-			_redraw = true;
-		}
-		
-		private void MenuQuitChoice(object sender, EventArgs args)
-		{
-			switch ((sender as Menu.Item).Value)
-			{
-				case 0:
-					break;
-				case 1:
-					Common.Quit();
-					break;
-			}
-			MenuCancel(sender, args);
-		}
-		
-		private void MenuRevolutionChoice(object sender, EventArgs args)
-		{
-			switch ((sender as Menu.Item).Value)
-			{
-				case 0:
-					break;
-				case 1:
-					Game.Instance.HumanPlayer.Revolt();
-					break;
-			}
-			MenuCancel(sender, args);
-		}
-		
-		private void MenuRevolution()
-		{
-			_menuLocation = new Point(64, 80);
-			_menuGraphics = new Picture(232, 31);
-			_menuGraphics.FillLayerTile(_menuBackground);
-			_menuGraphics.FillRectangle(0, 231, 0, 1, 31);
-			_menuGraphics.AddBorder(15, 8, 0, 0, 231, 31);
-			_menuGraphics.DrawText("Are you sure you want a REVOLUTION?", 0, 15, 4, 4);
-			
-			Bitmap background = (Bitmap)_menuGraphics.GetPart(2, 11, 228, 16).Clone();
-			Picture.ReplaceColours(background, new byte[] { 7, 22 }, new byte[] { 11, 3 });
-
-			Menu menu = new Menu(Canvas.Image.Palette.Entries, background)
-			{
-				X = 66,
-				Y = 91,
-				Width = 227,
-				ActiveColour = 11,
-				TextColour = 5,
-				FontId = 0,
-				Indent = 2
-			};
-			Menu.Item menuItem;
-			int i = 0;
-			foreach (string choice in new [] { "_No, thanks.", "_Yes, we need a new government." })
-			{
-				menu.Items.Add(menuItem = new Menu.Item(choice, i++));
-				menuItem.Selected += MenuRevolutionChoice;
-			}
-			menu.MissClick += MenuCancel;
-			menu.Cancel += MenuCancel;
-			Menus.Add(menu);
-			Common.AddScreen(menu);
-		}
-		
-		private void MenuQuit()
-		{
-			_menuLocation = new Point(101, 81);
-			_menuGraphics = new Picture(104, 39);
-			_menuGraphics.FillLayerTile(_menuBackground);
-			_menuGraphics.AddBorder(15, 8, 0, 0, 104, 39);
-			_menuGraphics.DrawText("Are you sure you", 0, 15, 4, 4);
-			_menuGraphics.DrawText("want to Quit?", 0, 15, 4, 12);
-			
-			Bitmap background = (Bitmap)_menuGraphics.GetPart(2, 19, 100, 16).Clone();
-			Picture.ReplaceColours(background, new byte[] { 7, 22 }, new byte[] { 11, 3 });
-
-			Menu menu = new Menu(Canvas.Image.Palette.Entries, background)
-			{
-				X = 103,
-				Y = 100,
-				Width = 100,
-				ActiveColour = 11,
-				TextColour = 5,
-				FontId = 0
-			};
-			Menu.Item menuItem;
-			int i = 0;
-			foreach (string choice in new [] { "Keep Playing", "Yes, Quit" })
-			{
-				menu.Items.Add(menuItem = new Menu.Item(choice, i++));
-				menuItem.Selected += MenuQuitChoice;
-			}
-			menu.MissClick += MenuCancel;
-			menu.Cancel += MenuCancel;
-			Menus.Add(menu);
-			Common.AddScreen(menu);
-		}
-		
 		private void MenuBarGame(object sender, EventArgs args)
 		{
-			_gameMenu = new GameMenu(_canvas.Image.Palette.Entries);
+			bool debugMenu = Settings.DebugMenu;
+			int quitItem = 8;
+
+			_gameMenu = new GameMenu(_canvas.Palette);
 			_gameMenu.Items.Add(new GameMenu.Item("Tax Rate"));
 			_gameMenu.Items.Add(new GameMenu.Item("Luxuries Rate"));
-			_gameMenu.Items.Add(new GameMenu.Item("FindCity") { Enabled = false });
+			_gameMenu.Items.Add(new GameMenu.Item("FindCity"));
 			_gameMenu.Items.Add(new GameMenu.Item("Options"));
-			_gameMenu.Items.Add(new GameMenu.Item("Save Game") { Enabled = false });
+			_gameMenu.Items.Add(new GameMenu.Item("Save Game") { Enabled = (Game.GameTurn > 0) });
 			_gameMenu.Items.Add(new GameMenu.Item("REVOLUTION!"));
 			_gameMenu.Items.Add(new GameMenu.Item(null));
+			if (debugMenu)
+			{
+				quitItem += 2;
+				_gameMenu.Items.Add(new GameMenu.Item("Debug Options"));
+				_gameMenu.Items.Add(new GameMenu.Item(null));
+				_gameMenu.Items[7].Selected += (s, a) => GameTask.Enqueue(Show.Screen<DebugOptions>());
+			}
 			_gameMenu.Items.Add(new GameMenu.Item("Retire") { Enabled = false });
 			_gameMenu.Items.Add(new GameMenu.Item("QUIT to DOS"));
 			
-			_gameMenu.Items[0].Selected += (s, a) => Common.AddScreen(SetRate.Taxes);
-			_gameMenu.Items[1].Selected += (s, a) => Common.AddScreen(SetRate.Luxuries);
-			_gameMenu.Items[3].Selected += (s, a) => GameTask.Enqueue(Show.Options); //Common.AddScreen(new GameOptions());
-			_gameMenu.Items[5].Selected += (s, a) => MenuRevolution();
-			_gameMenu.Items[8].Selected += (s, a) => MenuQuit();
+			_gameMenu.Items[0].Selected += (s, a) => GameTask.Enqueue(Show.TaxRate);
+			_gameMenu.Items[1].Selected += (s, a) => GameTask.Enqueue(Show.LuxuryRate);
+			_gameMenu.Items[2].Selected += (s, a) => GameTask.Enqueue(Show.Search);
+			_gameMenu.Items[3].Selected += (s, a) => GameTask.Enqueue(Show.Screen<GameOptions>());
+			_gameMenu.Items[4].Selected += (s, a) => GameTask.Enqueue(Show.Screen<SaveGame>());
+			_gameMenu.Items[5].Selected += (s, a) => GameTask.Enqueue(Show.Screen<Revolution>());
+			_gameMenu.Items[quitItem].Selected += (s, a) => GameTask.Enqueue(Show.Screen<ConfirmQuit>());
 			
 			_menuX = 16;
 			_menuY = 8;
@@ -191,10 +96,10 @@ namespace CivOne.Screens
 		
 		private void MenuBarOrders(object sender, EventArgs args)
 		{
-			if (Game.Instance.ActiveUnit == null) return;
+			if (Game.ActiveUnit == null) return;
 
-			_gameMenu = new GameMenu(_canvas.Image.Palette.Entries);
-			_gameMenu.Items.AddRange(Game.Instance.ActiveUnit.MenuItems);
+			_gameMenu = new GameMenu(_canvas.Palette);
+			_gameMenu.Items.AddRange(Game.ActiveUnit.MenuItems);
 			
 			_menuX = 72;
 			_menuY = 8;
@@ -204,7 +109,7 @@ namespace CivOne.Screens
 		
 		private void MenuBarAdvisors(object sender, EventArgs args)
 		{
-			_gameMenu = new GameMenu(_canvas.Image.Palette.Entries);
+			_gameMenu = new GameMenu(_canvas.Palette);
 			_gameMenu.Items.Add(new GameMenu.Item("City Status (F1)"));
 			_gameMenu.Items.Add(new GameMenu.Item("Military Advisor (F2)"));
 			_gameMenu.Items.Add(new GameMenu.Item("Intelligence Advisor (F3)"));
@@ -227,7 +132,7 @@ namespace CivOne.Screens
 		
 		private void MenuBarWorld(object sender, EventArgs args)
 		{
-			_gameMenu = new GameMenu(_canvas.Image.Palette.Entries);
+			_gameMenu = new GameMenu(_canvas.Palette);
 			_gameMenu.Items.Add(new GameMenu.Item("Wonders of the World (F7)"));
 			_gameMenu.Items.Add(new GameMenu.Item("Top 5 Cities (F8)"));
 			_gameMenu.Items.Add(new GameMenu.Item("Civilization Score (F9)"));
@@ -246,7 +151,7 @@ namespace CivOne.Screens
 		
 		private void MenuBarCivilopedia(object sender, EventArgs args)
 		{
-			_gameMenu = new GameMenu(_canvas.Image.Palette.Entries);
+			_gameMenu = new GameMenu(_canvas.Palette);
 			_gameMenu.Items.Add(new GameMenu.Item("Complete"));
 			_gameMenu.Items.Add(new GameMenu.Item("Civilization Advances"));
 			_gameMenu.Items.Add(new GameMenu.Item("City Improvements"));
@@ -289,15 +194,9 @@ namespace CivOne.Screens
 			if (!_update && !_redraw) return (gameTick % 3 == 0);
 			
 			DrawLayer(_menuBar, gameTick, 0, 0);
-			DrawLayer(_sideBar, gameTick, _rightSideBar ? 240 : 0, 8);
+			DrawLayer(_sideBar, gameTick, _rightSideBar ? (_canvas.Width - 80) : 0, 8);
 			DrawLayer(_gameMap, gameTick, _rightSideBar ? 0 : 80, 8);
 			DrawLayer(_gameMenu, gameTick, _menuX, _menuY);
-			
-			if (_menuLocation != Point.Empty && _menuGraphics != null)
-			{
-				_canvas.FillRectangle(5, _menuLocation.X - 1, _menuLocation.Y - 1, _menuGraphics.Image.Width + 2, _menuGraphics.Image.Height + 2);
-				AddLayer(_menuGraphics, _menuLocation.X, _menuLocation.Y);
-			}
 			
 			_redraw = false;
 			_update = false;
@@ -315,7 +214,7 @@ namespace CivOne.Screens
 			else if (_shift5 && args.Modifier == KeyModifier.Shift && args.KeyChar == '6')
 			{
 				_shift5 = false;
-				Settings.Instance.RevealWorldCheat();
+				Settings.RevealWorldCheat();
 				return true;
 			}
 			else if (_shift5)
@@ -327,6 +226,8 @@ namespace CivOne.Screens
 		
 		public override bool KeyDown(KeyboardEventArgs args)
 		{
+			if (GameTask.Any()) return true;
+
 			if (CheckShift56(args))
 				return true;
 			
@@ -374,10 +275,13 @@ namespace CivOne.Screens
 					Common.AddScreen(new WorldMap());
 					return true;
 				case Key.Plus:
-					Common.AddScreen(SetRate.Taxes);
+					GameTask.Enqueue(Show.TaxRate);
 					return true;
 				case Key.Minus:
-					Common.AddScreen(SetRate.Luxuries);
+					GameTask.Enqueue(Show.LuxuryRate);
+					return true;
+				case Key.Slash:
+					GameTask.Enqueue(Show.Search);
 					return true;
 			}
 			return _gameMap.KeyDown(args);
@@ -398,9 +302,9 @@ namespace CivOne.Screens
 			}
 			if (_rightSideBar)
 			{
-				if (args.X > 240)
+				if (args.X > (_canvas.Width - 80))
 				{
-					MouseArgsOffset(ref args, 240, 8);
+					MouseArgsOffset(ref args, (_canvas.Width - 80), 8);
 					return _sideBar.MouseDown(args);
 				}
 				else
@@ -452,15 +356,30 @@ namespace CivOne.Screens
 			return _update;
 		}
 		
+		public void Resize(int width, int height)
+		{
+			_canvas = new Picture(width, height, _canvas.Palette);
+			_canvas.FillRectangle(5, 0, 0, width, height);
+
+			_menuBar.Resize();
+			_sideBar.Resize(height - 8);
+			_gameMap.Resize(width - 80, height - 8);
+
+			_update = true;
+			HasUpdate(0);
+		}
+		
 		public GamePlay()
 		{
 			Cursor = MouseCursor.Pointer;
 			
-			Color[] palette = Resources.Instance.LoadPIC("SP257").Image.Palette.Entries;
+			Color[] palette = Resources.Instance.LoadPIC("SP257").Palette;
 			
 			_canvas = new Picture(320, 200, palette);
 			_canvas.FillRectangle(5, 0, 0, 320, 200);
 			
+			_rightSideBar = Settings.RightSideBar;
+
 			_menuBar = new MenuBar(palette);
 			_sideBar = new SideBar(palette);
 			_gameMap = new GameMap();
@@ -471,7 +390,12 @@ namespace CivOne.Screens
 			_menuBar.WorldSelected += MenuBarWorld;
 			_menuBar.CivilopediaSelected += MenuBarCivilopedia;
 
-			GameTask.Enqueue(Turn.End());
+			while (Game.CurrentPlayer != Game.HumanPlayer)
+			{
+				// TODO: Handle game turns before human player, instead of skipping them
+				GameTask.Enqueue(Turn.End());
+				GameTask.Update();
+			}
 		}
 	}
 }

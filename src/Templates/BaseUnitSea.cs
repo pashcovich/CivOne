@@ -7,14 +7,12 @@
 // You should have received a copy of the CC0 legalcode along with this
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
-using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using CivOne.Enums;
-using CivOne.GFX;
 using CivOne.Interfaces;
 using CivOne.Screens;
+using CivOne.Wonders;
 
 namespace CivOne.Templates
 {
@@ -40,6 +38,13 @@ namespace CivOne.Templates
 			}
 
 			base.MovementDone(previousTile);
+			
+			if (Map[X, Y].City != null)
+			{
+				// End turn when entering city
+				MovesLeft = 0;
+				return;
+			}
 		}
 
 		public override void Explore()
@@ -96,6 +101,14 @@ namespace CivOne.Templates
 		{
 			// Check whether the tile exists, is an ocean tile or contains a city.
 			return (tile != null && (tile.Type == Terrain.Ocean || tile.City != null));
+		}
+
+		public override void NewTurn()
+		{
+			base.NewTurn();
+
+			Player player = Game.GetPlayer(Owner);
+			if (player.HasWonder<MagellansExpedition>() || (!player.WonderObsolete<Lighthouse>() && player.HasWonder<Lighthouse>())) MovesLeft++;
 		}
 		
 		protected BaseUnitSea(byte price = 1, byte attack = 1, byte defense = 1, byte move = 1, int range = 1) : base(price, attack, defense, move)

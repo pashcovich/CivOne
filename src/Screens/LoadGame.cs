@@ -9,10 +9,8 @@
 
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Text;
 using CivOne.Enums;
 using CivOne.Events;
 using CivOne.GFX;
@@ -84,7 +82,7 @@ namespace CivOne.Screens
 		
 		private IEnumerable<SaveGameFile> GetSaveGames()
 		{
-			string path = Path.Combine(Settings.Instance.SavesDirectory, _driveLetter.ToString());
+			string path = Path.Combine(Settings.SavesDirectory, _driveLetter.ToString());
 			for (int i = 0; i < 10; i++)
 			{
 				string filename = Path.Combine(path, string.Format("CIVIL{0}", i));
@@ -167,7 +165,7 @@ namespace CivOne.Screens
 			}
 			else if (args.Key == Key.Enter)
 			{
-				_menu = new Menu(Canvas.Image.Palette.Entries)
+				_menu = new Menu(Canvas.Palette)
 				{
 					Title = "Select Load File...",
 					X = 51,

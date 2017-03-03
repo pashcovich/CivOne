@@ -40,12 +40,12 @@ namespace CivOne.Screens
 		
 		public WorldMap()
 		{
-			_canvas = new Picture(320, 200, Resources.WorldMapTiles.Image.Palette.Entries);
+			_canvas = new Picture(320, 200, Resources.WorldMapTiles.Palette);
 			
 			for (int x = 0; x < Map.WIDTH; x++)
 			for (int y = 0; y < Map.HEIGHT; y++)
 			{
-				if (!Settings.Instance.RevealWorld && !Game.Instance.HumanPlayer.Visible(x, y))
+				if (!Settings.RevealWorld && !Human.Visible(x, y))
 				{
 					_canvas.FillRectangle(5, (x * 4), (y * 4), 4, 4);
 					continue;

@@ -9,7 +9,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using CivOne.Enums;
 using CivOne.GFX;
@@ -23,7 +22,7 @@ namespace CivOne.Screens
 		private readonly City _city;
 
 		private readonly IProduction[] _availableProduction;
-		private readonly Bitmap _background;
+		private readonly Picture _background;
 		private readonly int _fontId = 0;
 		private readonly List<IProduction[]> _pages = new List<IProduction[]>();
 
@@ -34,7 +33,7 @@ namespace CivOne.Screens
 		private void MenuCancel(object sender, EventArgs args)
 		{
 			CloseMenus();
-			Close();
+			Destroy();
 		}
 
 		private void ProductionChoice(object sender, EventArgs args)
@@ -59,7 +58,7 @@ namespace CivOne.Screens
 				ProductionChoice(sender, args);
 				return;
 			}
-			ICivilopedia page = (_city.AvailableProduction.ToArray()[(sender as Menu.Item).Value] as ICivilopedia);
+			ICivilopedia page = (_pages[_page][(sender as Menu.Item).Value] as ICivilopedia);
 			Common.AddScreen(new Civilopedia(page, icon: false));
 		}
 
@@ -103,7 +102,7 @@ namespace CivOne.Screens
 							turns = (int)Math.Ceiling((double)turns / _city.ShieldIncome);
 						if (turns < 1) turns = 1;
 						menuText = $"{wonder.Name} ({turns} turns)";
-						if (HumanPlayer.WonderObsolete(wonder)) menuText = $"*{menuText}";
+						if (Human.WonderObsolete(wonder)) menuText = $"*{menuText}";
 						if (Resources.Instance.GetTextSize(_fontId, menuText).Width > itemWidth) itemWidth = Resources.Instance.GetTextSize(_fontId, menuText).Width;
 					}
 					menuItems.Add(menuText);
@@ -114,25 +113,21 @@ namespace CivOne.Screens
 				}
 				itemWidth += 10;
 
-				int actualWidth = itemWidth + 14;
-				int width = actualWidth;
-				if ((width % 4) > 0) width += (4 - (width % 4));
+				int width = itemWidth + 14;
 				int height = _menuHeight + 10 + Resources.Instance.GetFontHeight(_fontId);
 				Picture menuGfx = new Picture(width, height);
 				menuGfx.FillLayerTile(_background);
-				if (width > actualWidth)
-					menuGfx.FillRectangle(0, actualWidth, 0, width - actualWidth, height);
-				menuGfx.AddBorder(15, 8, 0, 0, actualWidth, height);
+				menuGfx.AddBorder(15, 8, 0, 0, width, height);
 				menuGfx.DrawText(menuHeaderText, _fontId, 15, 4, 4);
-				menuGfx.DrawText($"(Help available)", 1, 10, actualWidth, height - Resources.Instance.GetFontHeight(1), TextAlign.Right);
+				menuGfx.DrawText($"(Help available)", 1, 10, width, height - Resources.Instance.GetFontHeight(1), TextAlign.Right);
 
-				_canvas.FillRectangle(5, 80, 8, actualWidth + 2, height + 2);
+				_canvas.FillRectangle(5, 80, 8, width + 2, height + 2);
 				AddLayer(menuGfx, 81, 9);
 				
-				Bitmap background = (Bitmap)menuGfx.GetPart(2, 3 + Resources.Instance.GetFontHeight(_fontId), itemWidth, Resources.Instance.GetFontHeight(_fontId) * menuItems.Count + 4).Clone();
+				Picture background = menuGfx.GetPart(2, 3 + Resources.Instance.GetFontHeight(_fontId), itemWidth, Resources.Instance.GetFontHeight(_fontId) * menuItems.Count + 4);
 				Picture.ReplaceColours(background, new byte[] { 7, 22 }, new byte[] { 11, 3 });
 
-				Menu menu = new Menu(Canvas.Image.Palette.Entries, background)
+				Menu menu = new Menu(Canvas.Palette, background)
 				{
 					X = 83,
 					Y = 12 + Resources.Instance.GetFontHeight(_fontId),
@@ -153,39 +148,32 @@ namespace CivOne.Screens
 				menu.Width += 10;
 				menu.MissClick += MenuCancel;
 				menu.Cancel += MenuCancel;
-				Menus.Add(menu);
-				
-				Common.AddScreen(menu);
+
+				AddMenu(menu);
 				
 				_update = false;
 			}
 			return true;
 		}
 
-		public void Close()
-		{
-			HandleClose();
-			Destroy();
-		}
-
 		public CityChooseProduction(City city)
 		{
 			_city = city;
-			_background = (Bitmap)Resources.Instance.GetPart("SP299", 288, 120, 32, 16);
+			_background = Resources.Instance.GetPart("SP299", 288, 120, 32, 16);
 			
 			Cursor = MouseCursor.Pointer;
 
-			Color[] palette = Resources.Instance.LoadPIC("SP257").Image.Palette.Entries;
+			Color[] palette = Resources.Instance.LoadPIC("SP257").Palette;
 			
 			_canvas = new Picture(320, 200, palette);
 
 			_availableProduction = _city.AvailableProduction.ToArray();
 			_menuHeight = Resources.Instance.GetFontHeight(0) * _availableProduction.Length;
-			if (_menuHeight > 180)
+			if (_menuHeight > 170)
 			{
 				_fontId = 1;
 				_menuHeight = Resources.Instance.GetFontHeight(1) * _availableProduction.Length;
-				if (_menuHeight > 180)
+				if (_menuHeight > 170)
 				{
 					_pages.Add(_availableProduction.Where(p => (p is IUnit)).Take(28).ToArray());
 					if (_availableProduction.Count(p => (p is IBuilding || p is IWonder)) > 28)

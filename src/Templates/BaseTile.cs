@@ -11,68 +11,40 @@ using System.Collections.Generic;
 using System.Linq;
 using CivOne.Enums;
 using CivOne.GFX;
+using CivOne.Governments;
 using CivOne.Interfaces;
 
 namespace CivOne.Templates
 {
-	internal abstract class BaseTile : ITile
+	internal abstract class BaseTile : BaseInstance, ITile
 	{
-		protected Map Map
-		{
-			get
-			{
-				return Map.Instance;
-			}
-		}
-
 		protected bool AnarchyDespotism
 		{
 			get
 			{
 				if (!Game.Started)
 					return false;
-				
-				switch (Game.Instance.CurrentPlayer.Government)
-				{
-					case Government.Anarchy:
-					case Government.Despotism:
-						return true;
-				}
-				return false;
+				return (Game.CurrentPlayer.Government is Anarchy || Game.CurrentPlayer.Government is Despotism);
 			}
 		}
 
-		protected bool MonarchyCommunism
+		protected bool MonarchyCommunist
 		{
 			get
 			{
 				if (!Game.Started)
 					return false;
-				
-				switch (Game.Instance.CurrentPlayer.Government)
-				{
-					case Government.Monarchy:
-					case Government.Communism:
-						return true;
-				}
-				return false;
+				return (Game.CurrentPlayer.Government is Monarchy || Game.CurrentPlayer.Government is Communism);
 			}
 		}
 
-		protected bool RepublicDemocracy
+		protected bool RepublicDemocratic
 		{
 			get
 			{
 				if (!Game.Started)
 					return false;
-				
-				switch (Game.Instance.CurrentPlayer.Government)
-				{
-					case Government.Republic:
-					case Government.Democracy:
-						return true;
-				}
-				return false;
+				return (Game.CurrentPlayer.Government is Republic || Game.CurrentPlayer.Government is Democracy);
 			}
 		}
 
@@ -127,6 +99,8 @@ namespace CivOne.Templates
 		public abstract sbyte Food { get; }
 		public abstract sbyte Shield { get; }
 		public abstract sbyte Trade { get; }
+		public virtual sbyte BaseTrade { get; }
+		public virtual sbyte SpecialTrade { get; set; }
 		public abstract sbyte IrrigationFoodBonus { get; }
 		public abstract byte IrrigationCost { get; }
 		public abstract sbyte MiningShieldBonus { get; }
@@ -155,6 +129,7 @@ namespace CivOne.Templates
 				for (int relX = -1; relX <= 1; relX++)
 				{
 					if (relX == 0 && relY == 0) continue;
+					if (this[relX, relY] == null) continue;
 					yield return this[relX, relY];
 				}
 			}
@@ -253,7 +228,7 @@ namespace CivOne.Templates
 		{
 			get
 			{
-				return Game.Instance.GetCity(X, Y);
+				return Game.GetCity(X, Y);
 			}
 		}
 
@@ -261,7 +236,7 @@ namespace CivOne.Templates
 		{
 			get
 			{
-				return Game.Instance.GetUnits(X, Y);
+				return Game.GetUnits(X, Y);
 			}
 		}
 

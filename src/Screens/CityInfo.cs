@@ -7,8 +7,6 @@
 // You should have received a copy of the CC0 legalcode along with this
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
-using System;
-using System.Drawing;
 using System.Linq;
 using CivOne.Enums;
 using CivOne.Events;
@@ -22,7 +20,7 @@ namespace CivOne.Screens
 	{
 		private readonly City _city;
 
-		private readonly Bitmap _background;
+		private readonly Picture _background;
 		
 		private CityInfoChoice _choice = CityInfoChoice.Info;
 		private bool _update = true;
@@ -38,7 +36,7 @@ namespace CivOne.Screens
 					int xx = 4 + ((i % 6) * 18);
 					int yy = 0 + (((i - (i % 6)) / 6) * 16);
 
-					output.AddLayer(units[i].GetUnit(units[i].Owner).Image, xx, yy);
+					output.AddLayer(units[i].GetUnit(units[i].Owner), xx, yy);
 					string homeCity = "NON.";
 					if (units[i].Home != null)
 						homeCity = $"{units[i].Home.Name.Substring(0, 3)}.";
@@ -85,16 +83,6 @@ namespace CivOne.Screens
 				return output;
 			}
 		}
-		
-		private void DrawButton(string text, int x, int width, bool selected)
-		{
-			_canvas.FillRectangle(7, x + 0, 0, width, 1);
-			_canvas.FillRectangle(7, x + 0, 1, 1, 8);
-			_canvas.FillRectangle(1, x + 1, 8, width - 1, 1);
-			_canvas.FillRectangle(1, x + width - 1, 0, 1, 8);
-			_canvas.FillRectangle((byte)(selected ? 15 : 9), x + 1, 1, width - 2, 7);
-			_canvas.DrawText(text, 1, 1, x + (int)Math.Ceiling((double)width / 2), 2, TextAlign.Center);
-		}
 
 		public override bool HasUpdate(uint gameTick)
 		{
@@ -104,10 +92,10 @@ namespace CivOne.Screens
 				_canvas.AddBorder(1, 1, 0, 0, 133, 92);
 				_canvas.FillRectangle(0, 133, 0, 3, 92);
 				
-				DrawButton("Info", 0, 34, (_choice == CityInfoChoice.Info));
-				DrawButton("Happy", 34, 32, (_choice == CityInfoChoice.Happy));
-				DrawButton("Map", 66, 33, (_choice == CityInfoChoice.Map));
-				DrawButton("View", 99, 33, false);
+				DrawButton("Info", (byte)((_choice == CityInfoChoice.Info) ? 15 : 9), 1, 0, 0, 34);
+				DrawButton("Happy", (byte)((_choice == CityInfoChoice.Happy) ? 15 : 9), 1, 34, 0, 32);
+				DrawButton("Map", (byte)((_choice == CityInfoChoice.Map) ? 15 : 9), 1, 66, 0, 33);
+				DrawButton("View", 9, 1, 99, 0, 33);
 
 				switch (_choice)
 				{
@@ -183,7 +171,7 @@ namespace CivOne.Screens
 				if (new Rectangle(xx, yy, 16, 16).Contains(args.Location))
 				{
 					units[i].Busy = false;
-					Game.Instance.ActiveUnit = units[i];
+					Game.ActiveUnit = units[i];
 					_update = true;
 					break;
 				}
@@ -213,17 +201,12 @@ namespace CivOne.Screens
 			return true;
 		}
 
-		public void Close()
-		{
-			Destroy();
-		}
-
-		public CityInfo(City city, Bitmap background)
+		public CityInfo(City city, Picture background)
 		{
 			_city = city;
 			_background = background;
 
-			_canvas = new Picture(136, 92, background.Palette.Entries);
+			_canvas = new Picture(136, 92, background.Palette);
 		}
 	}
 }

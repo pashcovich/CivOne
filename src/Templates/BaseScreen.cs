@@ -8,10 +8,8 @@
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 using System;
-using System.Drawing;
 using System.Collections.Generic;
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
+using System.Linq;
 using CivOne.Enums;
 using CivOne.Events;
 using CivOne.Interfaces;
@@ -19,26 +17,11 @@ using CivOne.GFX;
 
 namespace CivOne.Templates
 {
-	public abstract class BaseScreen : IScreen
+	public abstract class BaseScreen : BaseInstance, IScreen
 	{
-		protected readonly List<Screens.Menu> Menus = new List<Screens.Menu>();
-		protected Picture _canvas = new Picture(320, 200);
+		private readonly List<Screens.Menu> _menus = new List<Screens.Menu>();
 
-		protected Map Map
-		{
-			get
-			{
-				return Map.Instance;
-			}
-		}
-		
-		protected Player HumanPlayer
-		{
-			get
-			{
-				return Game.Instance.HumanPlayer;
-			}
-		}
+		protected Picture _canvas = new Picture(320, 200);
 		
 		protected void AddLayer(IScreen screen, Point point)
 		{
@@ -46,7 +29,7 @@ namespace CivOne.Templates
 		}
 		protected void AddLayer(IScreen screen, int x = 0, int y = 0)
 		{
-			_canvas.AddLayer(screen.Canvas.Image, x, y);
+			_canvas.AddLayer(screen.Canvas, x, y);
 		}
 		protected void AddLayer(Picture picture, Point point)
 		{
@@ -54,15 +37,17 @@ namespace CivOne.Templates
 		}
 		protected void AddLayer(Picture picture, int x = 0, int y = 0)
 		{
-			_canvas.AddLayer(picture.Image, x, y);
+			_canvas.AddLayer(picture, x, y);
 		}
-		protected void AddLayer(Bitmap bitmap, Point point)
+
+		protected void DrawButton(string text, byte colour, byte colourDark, int x, int y, int width)
 		{
-			AddLayer(bitmap, point.X, point.Y);
-		}
-		protected void AddLayer(Bitmap bitmap, int x = 0, int y = 0)
-		{
-			_canvas.AddLayer(bitmap, x, y);
+			_canvas.FillRectangle(7, x, y, width, 1);
+			_canvas.FillRectangle(7, x, y + 1, 1, 8);
+			_canvas.FillRectangle(colourDark, x + 1, y + 8, width - 1, 1);
+			_canvas.FillRectangle(colourDark, x + width - 1, y, 1, 8);
+			_canvas.FillRectangle(colour, x + 1, y + 1, width - 2, 7);
+			_canvas.DrawText(text, 1, colourDark, x + (int)Math.Ceiling((double)width / 2), y + 2, TextAlign.Center);
 		}
 		
 		protected void MouseArgsOffset(ref ScreenEventArgs args, int offsetX, int offsetY)
@@ -90,7 +75,7 @@ namespace CivOne.Templates
 		{
 			get
 			{
-				return Canvas.Image.Palette.Entries;
+				return Canvas.Palette;
 			}
 		}
 		public virtual MouseCursor Cursor { get; protected set; }
@@ -111,18 +96,35 @@ namespace CivOne.Templates
 		{
 			return false;
 		}
+		public virtual bool MouseMove(ScreenEventArgs args)
+		{
+			return false;
+		}
 		
+		protected bool HasMenu
+		{
+			get
+			{
+				return _menus.Any();
+			}
+		}
+		protected void AddMenu(Screens.Menu menu)
+		{
+			_menus.Add(menu);
+			Common.AddScreen(menu);
+		}
 		protected void CloseMenus()
 		{
-			foreach (Screens.Menu menu in Menus)
+			foreach (Screens.Menu menu in _menus)
 			{
 				menu.Close();
 			}
-			Menus.Clear();
+			_menus.Clear();
 		}
 		protected void Destroy()
 		{
 			CloseMenus();
+			HandleClose();
 			Common.DestroyScreen(this);
 		}
 	}

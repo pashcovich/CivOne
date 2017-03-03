@@ -7,9 +7,7 @@
 // You should have received a copy of the CC0 legalcode along with this
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
-using System.Drawing;
 using CivOne.Enums;
-using CivOne.GFX;
 using CivOne.Templates;
 
 namespace CivOne.Tiles
@@ -52,7 +50,7 @@ namespace CivOne.Tiles
 		{
 			get
 			{
-				return (sbyte)(Special ? 3 + (MonarchyCommunism ? 1 : 0) + (RepublicDemocracy ? 2 : 0) : 0);
+				return (sbyte)(Special ? 3 + (MonarchyCommunist ? 1 : 0) + (RepublicDemocratic ? 2 : 0) : 0);
 			}
 		}
 		

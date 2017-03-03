@@ -8,23 +8,22 @@
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 using System;
-using System.Drawing;
-using System.Drawing.Imaging;
 using CivOne.Enums;
 using CivOne.Events;
 using CivOne.GFX;
+using CivOne.Interfaces;
 using CivOne.IO;
 using CivOne.Templates;
 
 namespace CivOne.Screens
 {
-	internal class Intro : BaseScreen
+	internal class Intro : BaseScreen, IExpand, IFast
 	{
 		private const float FADE_STEP = 0.0625F;
 		
 		private readonly string[] _introText;
 		private readonly Picture[] _pictures;
-		
+
 		private float _fadeStep = 0.0F;
 		private int _introTicks = 0;
 		private int _introLine = 1;
@@ -63,16 +62,16 @@ namespace CivOne.Screens
 			int r = (int)(((float)colour1.R * (1.0F - _fadeStep)) + ((float)colour2.R * _fadeStep));
 			int g = (int)(((float)colour1.G * (1.0F - _fadeStep)) + ((float)colour2.G * _fadeStep));
 			int b = (int)(((float)colour1.B * (1.0F - _fadeStep)) + ((float)colour2.B * _fadeStep));
-			return Color.FromArgb(r, g, b);
+			return new Color(r, g, b);
 		}
 		
 		private void FadeColours()
 		{
-			if (Settings.Instance.GraphicsMode != GraphicsMode.Graphics256) return;
+			if (Settings.GraphicsMode != GraphicsMode.Graphics256) return;
 			
-			ColorPalette palette = _pictures[_introPicture].Image.Palette;
+			Color[] palette = _pictures[_introPicture].Palette;
 			for (int i = 1; i < 256; i++)
-				palette.Entries[i] = FadeColour(Color.Black, _pictures[_introPicture].OriginalColours[i]);
+				palette[i] = FadeColour(Color.Black, _pictures[_introPicture].OriginalColours[i]);
 			_canvas.SetPalette(palette);
 		}
 		
@@ -95,7 +94,7 @@ namespace CivOne.Screens
 			else
 			{
 				_introPicture = _introPictureNext;
-				_canvas = new Picture(320, 200, _pictures[_introPicture].Image.Palette.Entries);
+				_canvas = new Picture(320, 200, _pictures[_introPicture].Palette);
 				FadeColours();
 			}
 			return true;
@@ -162,7 +161,19 @@ namespace CivOne.Screens
 				return false;
 			}
 			
-			AddLayer(_pictures[_introPicture]);
+			int x = (_canvas.Width - 320) / 2;
+			int y = (_canvas.Height - 200) / 2;
+			if (x != 0 || y != 0)
+			{
+				_canvas.FillRectangle(_pictures[_introPicture].GetBitmap[0, 0], 0, 0, _canvas.Width, _canvas.Height);
+				_canvas.FillRectangle(0, x, y, 320, 200);
+				_canvas.FillRectangle(_pictures[_introPicture].GetBitmap[10, 100], x, y, 320, 200);
+				AddLayer(_pictures[_introPicture], x, y);
+			}
+			else
+			{
+				AddLayer(_pictures[_introPicture]);
+			}
 			
 			if (_fadeStep < 1.0F) return true;
 			
@@ -170,7 +181,7 @@ namespace CivOne.Screens
 			string introLine = _introText[_introLine];
 			while (introLine == string.Empty)
 				introLine = _introText[_introLine - (++previousText)];
-			_canvas.DrawText(introLine, 6, TextColour, 160, 160, TextAlign.Center);
+			_canvas.DrawText(introLine, 6, TextColour, x + 160, y + 160, TextAlign.Center);
 			
 			if (_introTicks % 30 == 1) LogIntroText();
 			return true;
@@ -228,17 +239,32 @@ namespace CivOne.Screens
 			}
 			return false;
 		}
+
+		public void Resize(int width, int height)
+		{
+			_canvas = new Picture(width, height, _canvas.Palette);
+			_canvas.FillRectangle(0, 0, 0, width, height);
+			HasUpdate(0);
+		}
 		
 		public Intro()
 		{
 			Cursor = MouseCursor.None;
 			
 			_introText = TextFile.Instance.LoadArray("STORY");
+			if (_introText.Length == 0)
+			{
+				_introText = new string[16];
+				for (int i = 0; i < 16; i++)
+				{
+					_introText[i] = (i % 2) == 0 ? "MISSING TEXT" : "_";
+				}
+			}
 			_pictures = new Picture[8];
 			for (int i = 0; i < _pictures.Length; i++)
 				_pictures[i] = Resources.Instance.LoadPIC(string.Format("BIRTH{0}", i + 1), true);
 			
-			_canvas = new Picture(320, 200, _pictures[0].Image.Palette.Entries);
+			_canvas = new Picture(320, 200, _pictures[0].Palette);
 		}
 	}
 }

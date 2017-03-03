@@ -21,14 +21,25 @@ namespace CivOne
 		{
 			get
 			{
-				yield return Assembly.GetExecutingAssembly();
+				yield return typeof(Reflect).GetTypeInfo().Assembly;
+				//TODO: Load plugins
+				// foreach(string file in Directory.GetFiles(Settings.Instance.PluginsDirectory, "*.dll"))
+				// {
+				// 	yield return Assembly.LoadFile(file);
+				// }
 			}
 		}
 		
 		private static IEnumerable<T> GetTypes<T>()
 		{
 			foreach (Assembly asm in GetAssemblies)
-			foreach (Type type in asm.GetTypes().Where(t => typeof(T).IsAssignableFrom(t) && t.IsClass && !t.IsAbstract))
+			foreach (Type type in asm.GetTypes().Where(t => typeof(T).GetTypeInfo().IsAssignableFrom(t.GetTypeInfo()) && t.GetTypeInfo().IsClass && !t.GetTypeInfo().IsAbstract))
+			{
+				yield return (T)Activator.CreateInstance(type);
+			}
+
+			foreach (Assembly asm in GetAssemblies)
+			foreach (Type type in asm.GetTypes().Where(t => (t is T) && t.GetTypeInfo().IsClass && !t.GetTypeInfo().IsAbstract))
 			{
 				yield return (T)Activator.CreateInstance(type);
 			}
@@ -37,6 +48,16 @@ namespace CivOne
 		internal static IEnumerable<IAdvance> GetAdvances()
 		{
 			return GetTypes<IAdvance>().OrderBy(x => x.Id);
+		}
+
+		internal static IEnumerable<ICivilization> GetCivilizations()
+		{
+			return GetTypes<ICivilization>().OrderBy(x => (int)x.Id);
+		}
+		
+		internal static IEnumerable<IGovernment> GetGovernments()
+		{
+			return GetTypes<IGovernment>().OrderBy(x => x.Id);
 		}
 		
 		internal static IEnumerable<IUnit> GetUnits()
@@ -53,6 +74,16 @@ namespace CivOne
 		{
 			return GetTypes<IWonder>().OrderBy(x => x.Id);
 		}
+
+		internal static IEnumerable<IProduction> GetProduction()
+		{
+			foreach (IProduction production in GetUnits())
+				yield return production;
+			foreach (IProduction production in GetBuildings())
+				yield return production;
+			foreach (IProduction production in GetWonders())
+				yield return production;
+		}
 		
 		internal static IEnumerable<IConcept> GetConcepts()
 		{
@@ -62,7 +93,7 @@ namespace CivOne
 		internal static IEnumerable<ICivilopedia> GetCivilopediaAll()
 		{
 			List<string> articles = new List<string>();
-			foreach (ICivilopedia article in GetTypes<ICivilopedia>())
+			foreach (ICivilopedia article in GetTypes<ICivilopedia>().OrderBy(a => (a is IConcept) ? 1 : 0))
 			{
 				if (articles.Contains(article.Name)) continue;
 				articles.Add(article.Name);

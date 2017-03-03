@@ -11,9 +11,10 @@ namespace CivOne.Interfaces
 {
 	public interface ICivilization
 	{
+		int Id { get; }
 		string Name { get; }
 		string NamePlural { get; }
-		string LeaderName { get; }
+		ILeader Leader { get; }
 		byte PreferredPlayerNumber { get; }
 		byte StartX { get; }
 		byte StartY { get; }

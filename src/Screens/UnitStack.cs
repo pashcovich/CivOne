@@ -7,15 +7,12 @@
 // You should have received a copy of the CC0 legalcode along with this
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
-using System;
-using System.Drawing;
 using System.Linq;
 using CivOne.Enums;
 using CivOne.Events;
 using CivOne.Interfaces;
 using CivOne.GFX;
 using CivOne.Templates;
-using CivOne.Units;
 
 namespace CivOne.Screens
 {
@@ -36,7 +33,6 @@ namespace CivOne.Screens
 				if (!_units.Any())
 				{
 					// No units, close the dialog
-					HandleClose();
 					Destroy();
 					return true;
 				}
@@ -51,7 +47,7 @@ namespace CivOne.Screens
 				for (int i = 0; i < _units.Length; i++)
 				{
 					IUnit unit = _units[i];
-					dialog.AddLayer(unit.GetUnit(unit.Owner).Image, 4, (i * 16) + 3);
+					dialog.AddLayer(unit.GetUnit(unit.Owner), 4, (i * 16) + 3);
 					dialog.DrawText(unit.Name + (unit.Veteran ? " (V)" : ""), 0, 15, 27, (i * 16) + 4);
 					dialog.DrawText(unit.Home == null ? "NONE" : unit.Home.Name, 0, 14, 27, (i * 16) + 12);
 				}
@@ -66,7 +62,6 @@ namespace CivOne.Screens
 		
 		public override bool KeyDown(KeyboardEventArgs args)
 		{
-			HandleClose();
 			Destroy();
 			return true;
 		}
@@ -84,13 +79,12 @@ namespace CivOne.Screens
 					if (uid < 0 || uid >= _units.Length)
 						return true;
 					
-					Game.Instance.ActiveUnit = _units[uid];
+					Game.ActiveUnit = _units[uid];
 					_units[uid].Busy = false;
 					return true;
 				}
 			}
 
-			HandleClose();
 			Destroy();
 			return true;
 		}

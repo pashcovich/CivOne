@@ -9,10 +9,8 @@
 
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using CivOne.Enums;
-using CivOne.GFX;
 using CivOne.Interfaces;
 using CivOne.Screens;
 using CivOne.Tasks;
@@ -23,9 +21,15 @@ namespace CivOne.Templates
 	{
 		protected override void MovementDone(ITile previousTile)
 		{
+			if (Tile.Hut)
+			{
+				Tile.Hut = false;
+				TribalHut();
+			}
+
 			if (previousTile.Road && Tile.Road)
 			{
-				if (Tile.RailRoad && previousTile.RailRoad && Tile.City == null)
+				if (Tile.RailRoad && previousTile.RailRoad && previousTile.City == null)
 				{
 					// No moves lost
 				}
@@ -45,6 +49,10 @@ namespace CivOne.Templates
 				MovesLeft = 0;
 				PartMoves = 0;
 				Sentry = true;
+				foreach (IUnit unit in Tile.Units.Where(u => u is IBoardable))
+				{
+					unit.Sentry = false;
+				}
 			}
 			else
 			{
@@ -62,21 +70,15 @@ namespace CivOne.Templates
 					PartMoves = 0;
 				}
 			}
-			
-			if (Tile.Hut)
-			{
-				Tile.Hut = false;
-				TribalHut();
-			}
 		}
 
 		private void TribalHutMessage(EventHandler method, params string[] message)
 		{
-			if (Player.Human)
+			if (Player.IsHuman)
 			{
-				Message msgBox = Message.TribalHut(message);
+				Message msgBox = Message.General(message);
 				msgBox.Done += method;
-				GameTask.Enqueue(msgBox);
+				GameTask.Insert(msgBox);
 				return;
 			}
 			method(this, null);
@@ -135,7 +137,8 @@ namespace CivOne.Templates
 							foreach (ITile tile in Map[X, Y].GetBorderTiles())
 							{
 								if (tile.City != null || tile.Units.Length > 0) continue;
-								if (Common.Random.Next(0, 10) < 8) continue;
+								if (Common.Random.Next(0, 10) < 6) continue;
+								if (tile.IsOcean) continue;
 								Game.Instance.CreateUnit(Common.Random.Next(0, 100) < 50 ? Unit.Cavalry : Unit.Legion, tile.X, tile.Y, 0, true);
 								count++;
 							}

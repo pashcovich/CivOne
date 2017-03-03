@@ -28,7 +28,7 @@ namespace CivOne.Screens
 			Value = (sender as Input).Text;
 			if (Accept != null)
 				Accept(this, null);
-			((Input)sender).Close();
+			((Input)sender)?.Close();
 			Destroy();
 		}
 
@@ -36,13 +36,13 @@ namespace CivOne.Screens
 		{
 			if (Cancel != null)
 				Cancel(this, null);
-			((Input)sender).Close();
+			((Input)sender)?.Close();
 			Destroy();
 		}
 
 		public override bool HasUpdate(uint gameTick)
 		{
-			if (!Common.HasScreenType(typeof(Input)))
+			if (!Common.HasScreenType<Input>())
 			{
 				Common.AddScreen(_input);
 			}
@@ -61,7 +61,7 @@ namespace CivOne.Screens
 			_canvas.FillRectangle(5, 88, 95, 105, 14);
 			_canvas.FillRectangle(15, 89, 96, 103, 12);
 
-			_input = new Input(_canvas.Image.Palette.Entries, cityName, 0, 5, 11, 90, 97, 101, 10, 12);
+			_input = new Input(_canvas.Palette, cityName, 0, 5, 11, 90, 97, 101, 10, 12);
 			_input.Accept += CityName_Accept;
 			_input.Cancel += CityName_Cancel;
 		}

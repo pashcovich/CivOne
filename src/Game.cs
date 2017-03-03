@@ -11,22 +11,21 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using CivOne.Advances;
 using CivOne.Buildings;
-using CivOne.Civilizations;
 using CivOne.Enums;
 using CivOne.Interfaces;
 using CivOne.Screens;
 using CivOne.Tasks;
+using CivOne.Templates;
 using CivOne.Tiles;
 using CivOne.Units;
 
 namespace CivOne
 {
-	internal class Game
+	public class Game : BaseInstance
 	{
 		private readonly string[] _cityNames = Common.AllCityNames.ToArray();
-		private readonly bool[] _cityNameUsed = new bool[256];
+		private readonly bool[] _cityNameUsed = new bool[Common.AllCityNames.Count()];
 		private readonly int _difficulty, _competition;
 		private readonly Player[] _players;
 		private readonly List<City> _cities;
@@ -79,7 +78,7 @@ namespace CivOne
 			{
 				return _gameTurn;
 			}
-			private set
+			set
 			{
 				_gameTurn = value;
 				Console.WriteLine($"Turn {_gameTurn}: {GameYear}");
@@ -94,11 +93,7 @@ namespace CivOne
 			}
 		}
 		
-		internal Player HumanPlayer
-		{
-			get;
-			private set;
-		}
+		internal Player HumanPlayer { get; set; }
 		
 		internal Player CurrentPlayer
 		{
@@ -142,15 +137,19 @@ namespace CivOne
 			{
 				_currentPlayer = 0;
 				GameTurn++;
+				if (GameTurn % 50 == 0 && Settings.AutoSave)
+				{
+					GameTask.Enqueue(Show.AutoSave);
+				}
 			}
 
-			foreach (City city in _cities.Where(c => c.Owner == _currentPlayer).ToArray())
-			{
-				GameTask.Enqueue(Turn.New(city));
-			}
 			foreach (IUnit unit in _units.Where(u => u.Owner == _currentPlayer))
 			{
 				GameTask.Enqueue(Turn.New(unit));
+			}
+			foreach (City city in _cities.Where(c => c.Owner == _currentPlayer).ToArray())
+			{
+				GameTask.Enqueue(Turn.New(city));
 			}
 			GameTask.Enqueue(Turn.New(CurrentPlayer));
 
@@ -212,23 +211,22 @@ namespace CivOne
 			if (_cities.Any(c => c.X == x && c.Y == y))
 				return null;
 
-			City city = new City()
+			City city = new City(PlayerNumber(player))
 			{
 				X = (byte)x,
 				Y = (byte)y,
-				Owner = PlayerNumber(player),
 				Name = name,
 				Size = 1
 			};
-			if (!_cities.Any(c => c.Owner == city.Owner))
+			if (!_cities.Any(c => c.Size > 0 && c.Owner == city.Owner))
 			{
 				Palace palace = new Palace();
 				palace.SetFree();
 				city.AddBuilding(palace);
 			}
-			if ((Map.Instance[x, y] is Desert) || (Map.Instance[x, y] is Grassland) || (Map.Instance[x, y] is Hills) || (Map.Instance[x, y] is Plains) || (Map.Instance[x, y] is River))
+			if ((Map[x, y] is Desert) || (Map[x, y] is Grassland) || (Map[x, y] is Hills) || (Map[x, y] is Plains) || (Map[x, y] is River))
 			{
-				Map.Instance[x, y].Irrigation = true;
+				Map[x, y].Irrigation = true;
 			}
 			_cities.Add(city);
 			return city;
@@ -238,7 +236,9 @@ namespace CivOne
 		{
 			foreach (IUnit unit in _units.Where(u => u.Home == city).ToArray())
 				_units.Remove(unit);
-			_cities.Remove(city);
+			// _cities.Remove(city);
+			city.X = 255;
+			city.Y = 255;
 		}
 		
 		internal City GetCity(int x, int y)
@@ -316,6 +316,17 @@ namespace CivOne
 			return _units.ToArray();
 		}
 
+		internal void MovementDone()
+		{
+			foreach (City city in _cities)
+			{
+				foreach (ITile tile in city.ResourceTiles.Where(t => city.ValidTile(t)))
+				{
+					city.RelocateResourceTile(tile);
+				} 
+			}
+		}
+
 		public City[] GetCities()
 		{
 			return _cities.ToArray();
@@ -328,10 +339,28 @@ namespace CivOne
 				return _cities.SelectMany(c => c.Wonders).ToArray();
 			}
 		}
+
+		public bool WonderBuilt<T>() where T : IWonder
+		{
+			return BuiltWonders.Any(w => w is T);
+		}
+
+		public bool WonderBuilt(IWonder wonder)
+		{
+			return BuiltWonders.Any(w => w.Id == wonder.Id);
+		}
 		
 		public void DisbandUnit(IUnit unit)
 		{
 			if (!_units.Contains(unit)) return;
+			if (unit.Tile is Ocean && unit is IBoardable)
+			{
+				int totalCargo = unit.Tile.Units.Where(u => u is IBoardable).Sum(u => (u as IBoardable).Cargo) - (unit as IBoardable).Cargo;
+				while (unit.Tile.Units.Count(u => u.Class != UnitClass.Water) > totalCargo)
+				{
+					_units.Remove(unit.Tile.Units.First(u => u.Class != UnitClass.Water));
+				} 
+			}
 			_units.Remove(unit);
 		}
 
@@ -353,6 +382,10 @@ namespace CivOne
 					
 				// Does the current unit still have moves left?
 				if (_units[_activeUnit].Owner == _currentPlayer && (_units[_activeUnit].MovesLeft > 0 || _units[_activeUnit].PartMoves > 0) && !_units[_activeUnit].Sentry && !_units[_activeUnit].Fortify)
+					return _units[_activeUnit];
+
+				// Task busy, don't change the active unit
+				if (GameTask.Any())
 					return _units[_activeUnit];
 				
 				// Check if any units are still available for this player
@@ -423,6 +456,9 @@ namespace CivOne
 				ushort humanPlayer = Common.BinaryReadUShort(br, 2);
 				ushort randomSeed = Common.BinaryReadUShort(br, 6);
 				ushort difficulty = Common.BinaryReadUShort(br, 10);
+				
+				Map.Instance.LoadMap(mapFile, randomSeed);
+
 				string[] leaderNames = Common.BinaryReadStrings(br, 16, 112, 14);
 				string[] tribeNamesPlural = Common.BinaryReadStrings(br, 128, 96, 12);
 				string[] tribeNames = Common.BinaryReadStrings(br, 224, 88, 11);
@@ -430,27 +466,64 @@ namespace CivOne
 				ushort[] unitCount = new ushort[8];
 				for (int i = 0; i < 8; i++)
 					unitCount[i] = Common.BinaryReadUShort(br, 1752 + (i * 2));
+				ushort[] wonderList = new ushort[21];
+				for (int i = 1; i <= 21; i++)
+					wonderList[i - 1] = Common.BinaryReadUShort(br, 34418 + (i * 2));
 				List<City> cities = new List<City>();
+
+				Dictionary<byte, City> cityList = new Dictionary<byte, City>();
+				byte cityId = 255;
 				for (int i = 5384; i < 8968; i+= 28)
 				{
+					cityId++;
+					byte[] buildings = Common.BinaryReadBytes(br, i, 4);
 					byte x = Common.BinaryReadByte(br, i + 4);
 					byte y = Common.BinaryReadByte(br, i + 5);
 					byte actualSize = Common.BinaryReadByte(br, i + 7);
+					byte currentProduction = Common.BinaryReadByte(br, i + 9);
 					byte owner = Common.BinaryReadByte(br, i + 11);
+					ushort food = Common.BinaryReadUShort(br, i + 12);
+					ushort shields = Common.BinaryReadUShort(br, i + 14);
+					byte[] resourceTiles = Common.BinaryReadBytes(br, i + 16, 6);
 					byte nameId = Common.BinaryReadByte(br, i + 22);
 					string name = cityNames[nameId];
 					
 					if (x == 0 && y == 0 && actualSize == 0 && owner == 0 && nameId == 0) continue;
+
+					//TODO: For now, don't load destroyed cities
+					if (actualSize == 0) continue;
 					
-					City city = new City()
+					City city = new City(owner)
 					{
 						X = x,
 						Y = y,
-						Owner = owner,
 						Name = name,
-						Size = actualSize
+						Size = actualSize,
+						Food = food,
+						Shields = shields
 					};
+					city.SetProduction(currentProduction);
+					city.SetResourceTiles(resourceTiles);
+
+					// Set city buildings
+					for (int j = 0; j < 32; j++)
+					{
+						if (!Common.Buildings.Any(b => b.Id == j)) continue;
+						int bit = (j % 8);
+						int index = (j - bit) / 8;
+						if (((buildings[index] >> bit) & 1) == 0) continue;
+						city.AddBuilding(Common.Buildings.First(b => b.Id == j));
+					}
+
+					// Set city wonders
+					foreach (IWonder wonder in Common.Wonders)
+					{
+						if (wonderList[wonder.Id - 1] != cityId) continue;
+						city.AddWonder(wonder);
+					}
+					
 					cities.Add(city);
+					cityList.Add(cityId, city);
 				}
 				List<IUnit> units = new List<IUnit>();
 				for (int i = 9920; i < 22208; i+= 12)
@@ -463,32 +536,76 @@ namespace CivOne
 					byte x = Common.BinaryReadByte(br, i + 1);
 					byte y = Common.BinaryReadByte(br, i + 2);
 					byte type = Common.BinaryReadByte(br, i + 3);
+					byte moves = Common.BinaryReadByte(br, i + 4);
+					byte homeCity = Common.BinaryReadByte(br, i + 11);
 					
 					IUnit unit = CreateUnit((Unit)type, x, y);
 					if (unit == null) continue;
 
 					unit.Status = status;
 					unit.Owner = (byte)civ;
+					unit.PartMoves = (byte)(moves % 3);
+					unit.MovesLeft = (byte)((moves - unit.PartMoves) / 3);
+					if (cityList.ContainsKey(homeCity))
+					{
+						unit.SetHome(cityList[homeCity]);
+					}
 					units.Add(unit);
 				}
 				ushort competition = (ushort)(Common.BinaryReadUShort(br, 37820) + 1);
 				ushort civIdentity = Common.BinaryReadUShort(br, 37854);
 				
-				Map.Instance.LoadMap(mapFile, randomSeed);
 				_instance = new Game(difficulty, competition);
 				Console.WriteLine("Game instance loaded (difficulty: {0}, competition: {1})", difficulty, competition);
 				
+				// Load map visibility
+				byte[] visibility = Common.BinaryReadBytes(br, 22208, 4000);
+
 				for (int i = 0; i <= competition; i++)
 				{
 					int identity = ((civIdentity >> i) & 0x1);
-					ICivilization civ = Common.Civilizations.Where(c => c.PreferredPlayerNumber == i).ToArray()[identity];
-					_instance._players[i] = new Player(civ, leaderNames[i], tribeNames[i], tribeNamesPlural[i]);
-					_instance._players[i].Gold = (short)Common.BinaryReadUShort(br, 312 + (i * 2));
+					ICivilization[] civs = Common.Civilizations.Where(c => c.PreferredPlayerNumber == i).ToArray();
+					ICivilization civ = civs[identity];
+					Player player = (_instance._players[i] = new Player(civ, leaderNames[i], tribeNames[i], tribeNamesPlural[i]));
+					player.Gold = (short)Common.BinaryReadUShort(br, 312 + (i * 2));
+					player.Science = (short)Common.BinaryReadUShort(br, 328 + (i * 2));
+					player.Government = Reflect.GetGovernments().FirstOrDefault(x => x.Id == Common.BinaryReadUShort(br, 1336 + (i * 2)));
+
+					player.TaxesRate = (short)Common.BinaryReadUShort(br, 1848 + (i * 2));
+					player.LuxuriesRate = 10 - (short)Common.BinaryReadUShort(br, 35760 + (i * 2)) - player.TaxesRate;
 					
-					Console.WriteLine("- Player {0} is {1} of the {2}{3}", i, _instance._players[i].LeaderName, _instance._players[i].TribeNamePlural, (i == humanPlayer) ? " (human)" : "");
+					// Set map visibility
+					for (int xx = 0; xx < 80; xx++)
+					for (int yy = 0; yy < 50; yy++)
+					{
+						byte tile = visibility[(50 * xx) + yy];
+						if ((tile & (1 << i)) == 0) continue;
+						player.Explore(xx, yy, 0);
+					}
+
+					// Set civilization advances
+					for (int t = 0; t < 5; t++)
+					{
+						int offset = 1256 + (i * 10) + (t * 2);
+						ushort techFlag = Common.BinaryReadUShort(br, offset);
+						for (int b = 0; b < 16; b++)
+						{
+							if ((techFlag & (1 << b)) == 0) continue;
+							IAdvance advance = Common.Advances.FirstOrDefault(a => a.Id == (16 * t) + b);
+							if (advance == null) continue;
+							player.AddAdvance(advance, false);
+							
+							int originId = Common.BinaryReadUShort(br, 26720 + (advance.Id * 2));
+							if (originId == player.Civilization.Id)
+								_instance.SetAdvanceOrigin(advance, player);
+						}
+					}
+					
+					Console.WriteLine("- Player {0} is {1} of the {2}{3}", i, player.LeaderName, _instance._players[i].TribeNamePlural, (i == humanPlayer) ? " (human)" : "");
 				}
 				_instance.GameTurn = Common.BinaryReadUShort(br, 0);
 				_instance.HumanPlayer = _instance._players[humanPlayer];
+				_instance.HumanPlayer.CurrentResearch = Common.Advances.FirstOrDefault(a => a.Id == Common.BinaryReadUShort(br, 14));
 				
 				foreach (City city in cities)
 				{
@@ -498,6 +615,656 @@ namespace CivOne
 				{
 					_instance._units.Add(unit);
 				}
+			}
+		}
+
+		public void Save(string sveFile, string mapFile)
+		{
+			// TODO: Implement full save file configuration
+			// - http://forums.civfanatics.com/showthread.php?p=12422448
+			// - http://forums.civfanatics.com/showthread.php?t=493581
+			using (BinaryWriter bw = new BinaryWriter(File.Open(sveFile, FileMode.Create)))
+			{
+				ushort randomSeed = Map.Instance.SaveMap(mapFile);
+				ushort activeCivilizations = 1;
+				for (int i = 1; i < _players.Length; i++)
+					if (_players[i].Cities.Any() || GetUnits().Any(x => x.Owner == i))
+						activeCivilizations |= (ushort)(0x01 << i);
+
+				bw.Write(GameTurn);
+				bw.Write((ushort)PlayerNumber(HumanPlayer));
+				bw.Write((ushort)(0x01 << PlayerNumber(HumanPlayer)));
+				bw.Write(randomSeed);
+				bw.Write((short)Common.TurnToYear(GameTurn));
+				bw.Write((ushort)Difficulty);
+				bw.Write(activeCivilizations);
+				if (HumanPlayer.CurrentResearch == null)
+					bw.Write((ushort)0x00);
+				else
+					bw.Write((ushort)HumanPlayer.CurrentResearch.Id);
+
+				// Leader names
+				for (int i = 0; i < 8; i++)
+				{
+					if (_players.GetUpperBound(0) < i)
+					{
+						for (int x = 0; x < 14; x++)
+						{
+							bw.Write((byte)0x00);
+						}
+						continue;
+					}
+					bw.Write(_players[i].LeaderName.PadRight(14, (char)0x00).Select(x => (byte)x).ToArray());
+				}
+				for (int i = 0; i < 8; i++)
+				{
+					if (_players.GetUpperBound(0) < i)
+					{
+						for (int x = 0; x < 12; x++)
+						{
+							bw.Write((byte)0x00);
+						}
+						continue;
+					}
+					bw.Write(_players[i].Civilization.NamePlural.PadRight(12, (char)0x00).Select(x => (byte)x).ToArray());
+				}
+				for (int i = 0; i < 8; i++)
+				{
+					if (_players.GetUpperBound(0) < i)
+					{
+						for (int x = 0; x < 11; x++)
+						{
+							bw.Write((byte)0x00);
+						}
+						continue;
+					}
+					bw.Write(_players[i].Civilization.Name.PadRight(11, (char)0x00).Select(x => (byte)x).ToArray());
+				}
+
+				// Player gold
+				for (int i = 0; i < 8; i++)
+				{
+					if (_players.GetUpperBound(0) < i)
+					{
+						bw.Write((short)0);
+						continue;
+					}
+					bw.Write(_players[i].Gold);
+				}
+
+				// Research progress
+				for (int i = 0; i < 8; i++)
+				{
+					if (_players.GetUpperBound(0) < i)
+					{
+						bw.Write((short)0);
+						continue;
+					}
+					bw.Write(_players[i].Science);
+				}
+
+				// Units active
+				for (int i = 0; i < 8; i++)
+				for (byte unitId = 0; unitId < 28; unitId++)
+				{
+					if (_players.GetUpperBound(0) < i)
+					{
+						bw.Write((short)0);
+						continue;
+					}
+					bw.Write((short)GetUnits().Where(x => x.Owner == i).Count(x =>
+						x.ProductionId == unitId));
+				}
+
+				// Units currently in production
+				for (int i = 0; i < 8; i++)
+				for (byte unitId = 0; unitId < 28; unitId++)
+				{
+					if (_players.GetUpperBound(0) < i)
+					{
+						bw.Write((short)0);
+						continue;
+					}
+					bw.Write((short)_players[i].Cities.Count(x =>
+						x.CurrentProduction is IUnit &&
+						(x.CurrentProduction as IUnit).ProductionId == unitId));
+				}
+
+				// Discovered Advances Count
+				for (int i = 0; i < 8; i++)
+				{
+					if (_players.GetUpperBound(0) < i)
+					{
+						bw.Write((short)0);
+						continue;
+					}
+					bw.Write((short)_players[i].Advances.Count());
+				}
+
+				// Set civilization advances
+				for (int i = 0; i < 8; i++)
+				{
+					if (_players.GetUpperBound(0) < i)
+					{
+						bw.Write(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
+						continue;
+					}
+					for (int techGroup = 0; techGroup < 5; techGroup++)
+					{
+						ushort techFlag = 0;
+						foreach (IAdvance advance in _players[i].Advances.Where(x => ((x.Id - (x.Id % 16)) / 16) == techGroup))
+						{
+							techFlag |= (ushort)(0x01 << (advance.Id % 16));
+						}
+						bw.Write(techFlag);
+					}
+				}
+
+				// Civilization Governments
+				for (int i = 0; i < 8; i++)
+				{
+					if (_players.GetUpperBound(0) < i)
+					{
+						bw.Write((short)0);
+						continue;
+					}
+					bw.Write((short)_players[i].Government.Id);
+				}
+
+				// TODO: Civ AI strategy
+				for (int i = 0; i < 256; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// TODO: Diplomacy
+				for (int i = 0; i < 128; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// City counts
+				for (int i = 0; i < 8; i++)
+				{
+					bw.Write((short)GetCities().Count(x => x.Owner == i));
+				}
+
+				// Unit counts
+				for (int i = 0; i < 8; i++)
+				{
+					bw.Write((short)GetUnits().Count(x => x.Owner == i));
+				}
+
+				// TODO: Land counts
+				for (int i = 0; i < 8; i++)
+				{
+					bw.Write((short)0);
+				}
+
+				// Settler counts
+				for (int i = 0; i < 8; i++)
+				{
+					bw.Write((short)(GetUnits().Count(x => (x is Settlers) && x.Owner == i) + 1));
+				}
+
+				// Total Civ size
+				for (int i = 0; i < 8; i++)
+				{
+					bw.Write((short)GetCities().Where(x => x.Owner == i).Sum(x => x.Size));
+				}
+
+				// Military power
+				for (int i = 0; i < 8; i++)
+				{
+					bw.Write((short)GetUnits().Where(x => x.Owner == i).Sum(x => x.Attack + x.Defense));
+				}
+
+				// TODO: Civ Rankings
+				for (int i = 0; i < 8; i++)
+				{
+					bw.Write((short)i);
+				}
+
+				// Tax rate
+				for (int i = 0; i < 8; i++)
+				{
+					if (_players.GetUpperBound(0) < i)
+					{
+						bw.Write((short)0);
+						continue;
+					}
+					bw.Write((short)_players[i].TaxesRate);
+				}
+
+				// TODO: Civ score
+				for (int i = 0; i < 8; i++)
+				{
+					bw.Write((short)i);
+				}
+
+				// TODO: Human contact turn counter
+				for (int i = 0; i < 8; i++)
+				{
+					bw.Write((short)0);
+				}
+
+				// TODO: Starting position X coordinate
+				for (int i = 0; i < 8; i++)
+				{
+					bw.Write((short)0);
+				}
+
+				// Leader graphics
+				for (int i = 0; i < 8; i++)
+				{
+					if (_players.GetUpperBound(0) < i)
+					{
+						bw.Write((short)0);
+						continue;
+					}
+					bw.Write((short)_players[i].Civilization.Id);
+				}
+
+				// TODO: Per-continent Civ defense
+				for (int i = 0; i < 256; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// TODO: Per-continent Civ attack
+				for (int i = 0; i < 256; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// TODO: Per-continent Civ city count
+				for (int i = 0; i < 256; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// TODO: Continent sizes
+				for (int i = 0; i < 128; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// TODO: Oceans sizes
+				for (int i = 0; i < 128; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// TODO: Continent building site counts
+				for (int i = 0; i < 32; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// TODO: Score chart data
+				for (int i = 0; i < 1200; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// TODO: Peace chart data
+				for (int i = 0; i < 1200; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// Cities
+				Dictionary<byte, City> cityList = new Dictionary<byte, City>();
+				for (int i = 0; i < 128; i++)
+				{
+					if (_cities.Count - 1 < i)
+					{
+						for (int b = 0; b < 28; b++)
+						{
+							bw.Write((byte)0);
+						}
+						continue;
+					}
+					City city = _cities[i];
+					cityList.Add((byte)cityList.Count, city);
+					for (int buildingGroup = 0; buildingGroup < 4; buildingGroup++)
+					{
+						byte b = 0;
+						foreach (IBuilding building in city.Buildings.Where(x => (x.Id - (x.Id % 8)) / 8 == buildingGroup))
+						{
+							b |= (byte)(0x01 << (building.Id % 8));
+						}
+						bw.Write(b);
+					}
+					bw.Write(city.X);
+					bw.Write(city.Y);
+					bw.Write(city.Status);
+					bw.Write(city.Size);
+					bw.Write(city.Size);
+					bw.Write(city.CurrentProduction.ProductionId);
+					bw.Write((byte)city.TradeTotal);
+					bw.Write(city.Owner);
+					bw.Write((ushort)city.FoodTotal);
+					bw.Write((ushort)city.ShieldTotal);
+					// TODO: City squares / specialists
+					for (int b = 0; b < 6; b++)
+					{
+						bw.Write((byte)0);
+					}
+					//
+					bw.Write((byte)i);
+					// TODO: Trading cities
+					for (int b = 0; b < 3; b++)
+					{
+						bw.Write((byte)0);
+					}
+					// Unknown:
+					for (int b = 0; b < 2; b++)
+					{
+						bw.Write((byte)0);
+					}
+				}
+
+				// TODO: Unit types
+				for (int i = 0; i < 952; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				for (int i = 0; i < 8; i++)
+				{
+					if (_players.GetUpperBound(0) < i)
+					{
+						for (int x = 0; x < (12 * 128); x++)
+						{
+							bw.Write((byte)0);
+						}
+						continue;
+					}
+					Player player = _players[i];
+					IUnit[] units = _units.Where(x => x.Owner == i).ToArray();
+					for (int playerUnit = 0; playerUnit < 128; playerUnit++)
+					{
+						if (units.GetUpperBound(0) < playerUnit)
+						{
+							for (int x = 0; x < 12; x++)
+							{
+								switch (x)
+								{
+									case 3:
+										bw.Write((byte)0xFF); // Unit type
+										break;
+									default:
+										bw.Write((byte)0);
+										break;
+								}
+							}
+							continue;
+						}
+						IUnit unit = units[playerUnit];
+						byte unitStatus = 0;
+						if (unit.Sentry) unitStatus |= (byte)(0x01 << 0);
+						if ((unit is Settlers) && (unit as Settlers).BuildingIrrigation > 0) unitStatus |= (byte)(0x01 << 1);
+						if (unit.FortifyActive) unitStatus |= (byte)(0x01 << 2);
+						if (unit.Fortify) unitStatus |= (byte)(0x01 << 3);
+						//
+						if (unit.Veteran) unitStatus |= (byte)(0x01 << 5);
+						if ((unit is Settlers) && (unit as Settlers).BuildingFortress > 0) unitStatus |= (byte)(0x01 << 6);
+						// TODO: Bit 8: Cleaning polution
+
+						bw.Write(unitStatus);
+						bw.Write((byte)unit.X);
+						bw.Write((byte)unit.Y);
+						bw.Write((byte)unit.Type);
+						bw.Write((byte)((unit.MovesLeft * 3) + unit.PartMoves));
+						bw.Write((byte)0);
+						// TODO: Goto coordinates
+						bw.Write(new byte[] { 0xFF, 0xFF });
+						bw.Write((byte)0); // Unknown
+						bw.Write((byte)0); // TODO: Visibility per Civ
+						bw.Write((byte)0); // TODO: Next unit in stack
+						if (unit.Home == null)
+							bw.Write((byte)0xFF);
+						else
+							bw.Write(cityList.First(x => x.Value == unit.Home).Key);
+					}
+				}
+
+				// Map visibility
+				for (int xx = 0; xx < 80; xx++)
+				for (int yy = 0; yy < 50; yy++)
+				{
+					byte visibility = 0;
+					for (int i = 0; i < 8; i++)
+					{
+						if (_players.GetUpperBound(0) < i) continue;
+						if (!_players[i].Visible(xx, yy)) continue;
+						visibility |= (byte)(0x01 << i);
+					}
+					bw.Write(visibility);
+				}
+
+				// TODO: Strategic locations status
+				for (int i = 0; i < 128; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// TODO: Strategic locations policy
+				for (int i = 0; i < 128; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// TODO: Strategic locations X
+				for (int i = 0; i < 128; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// TODO: Strategic locations Y
+				for (int i = 0; i < 128; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// Tech origins
+				for (byte i = 0; i < 72; i++)
+				{
+					if (!_advanceOrigin.ContainsKey(i))
+					{
+						bw.Write((ushort)0);
+						continue;
+					}
+					bw.Write((ushort)_advanceOrigin[i]);
+				}
+
+				// TODO: Civ-to-Civ destroyed unit counts
+				for (int i = 0; i < 128; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// City names
+				for (int i = 0; i < 256; i++)
+				{
+					if (_cities.Count() - 1 < i)
+					{
+						bw.Write(_cityNames[i].PadRight(13, (char)0x00).Select(x => (byte)x).ToArray());
+						continue;
+					}
+					bw.Write(_cities[i].Name.PadRight(13, (char)0x00).Select(x => (byte)x).ToArray());
+				}
+
+				// TODO: Replay data
+				for (int i = 0; i < 4098; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// Wonders
+				for (int i = 0; i < 22; i++)
+				{
+					if (!cityList.Any(x => x.Value.Wonders.Any(w => (w.Id - 1) == i)))
+					{
+						bw.Write(new byte[] { 0xFF, 0xFF });
+						continue;
+					}
+					bw.Write((ushort)cityList.First(x => x.Value.Wonders.Any(w => (w.Id - 1) == i)).Key);
+				}
+				
+				// TODO: Units lost
+				for (int i = 0; i < 448; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// TODO: Source Civs for techs
+				for (int i = 0; i < 576; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// TODO: Polluted square count
+				for (int i = 0; i < 2; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// TODO: Pollution effect level
+				for (int i = 0; i < 2; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// TODO: Global warming count
+				for (int i = 0; i < 2; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// TODO: Game Settings
+				for (int i = 0; i < 2; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// TODO: Land pathfinding
+				for (int i = 0; i < 260; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// Max tech count
+				for (int i = 0; i < 2; i++)
+				{
+					bw.Write((byte)_players.Max(x => x.Advances.Count()));
+				}
+
+				// TODO: Player future techs
+				for (int i = 0; i < 2; i++)
+				{
+					bw.Write((byte)0);
+				}
+				
+				// TODO: Debug switches
+				for (int i = 0; i < 2; i++)
+				{
+					bw.Write((byte)0);
+				}
+				
+				// Science rates
+				for (int i = 0; i < 8; i++)
+				{
+					if (_players.GetUpperBound(0) < i)
+					{
+						bw.Write((short)0);
+						continue;
+					}
+					bw.Write((short)_players[i].ScienceRate);
+				}
+				
+				// TODO: Next anthology turn
+				for (int i = 0; i < 2; i++)
+				{
+					bw.Write((byte)0);
+				}
+				
+				// TODO: Cumulative Epic Rankings
+				for (int i = 0; i < 16; i++)
+				{
+					bw.Write((byte)0);
+				}
+				
+				// TODO: Space ships
+				for (int i = 0; i < 1462; i++)
+				{
+					bw.Write((byte)0);
+				}
+				
+				// TODO: Palace
+				for (int i = 0; i < 48; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// City X coordinates
+				for (int i = 0; i < 256; i++)
+				{
+					if (_cities.Count - 1 < i)
+					{
+						bw.Write((byte)0xFF);
+						continue;
+					}
+					bw.Write(_cities[i].X);
+				}
+
+				// City Y coordinates
+				for (int i = 0; i < 256; i++)
+				{
+					if (_cities.Count - 1 < i)
+					{
+						bw.Write((byte)0xFF);
+						continue;
+					}
+					bw.Write(_cities[i].Y);
+				}
+				
+				// TODO: Palace level
+				for (int i = 0; i < 2; i++)
+				{
+					bw.Write((byte)0);
+				}
+				
+				// TODO: Peace turn count
+				for (int i = 0; i < 2; i++)
+				{
+					bw.Write((byte)0);
+				}
+				
+				// TODO: AI opponents
+				bw.Write((ushort)(_players.Length - 2));
+
+				// TODO: Spaceship population
+				for (int i = 0; i < 16; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// TODO: Spaceship launch year
+				for (int i = 0; i < 16; i++)
+				{
+					bw.Write((byte)0);
+				}
+
+				// Civ identity
+				ushort identity = 0;
+				for (int i = 1; i < 8; i++)
+				{
+					if (_players.GetUpperBound(0) < i) continue;
+					if (_players[i].Civilization.Id > 7) identity |= (ushort)(0x01 << i);
+				}
+				bw.Write(identity);
 			}
 		}
 		
@@ -511,25 +1278,29 @@ namespace CivOne
 				// Choose a map square randomly
 				int x = Common.Random.Next(0, Map.WIDTH);
 				int y = Common.Random.Next(2, Map.HEIGHT - 2);
-				if (Map.Instance.FixedStartPositions)
+				if (Map.FixedStartPositions && GameTurn == 0)
 				{
+					// Map position is fixed, don't check anything
 					x = _players[player].Civilization.StartX;
 					y = _players[player].Civilization.StartY;
 				}
-				ITile tile = Map.Instance[x, y];
-				
-				if (tile.IsOcean) continue; // Is it an ocean tile?
-				if (tile.Hut) continue; // Is there a hut on this tile?
-				if (_units.Any(u => u.X == x || u.Y == y)) continue; // Is there already a unit on this tile?
-				if (tile.LandValue < (12 - (loopCounter / 32))) continue; // Is the land value high enough?
-				if (_cities.Any(c => Common.DistanceToTile(x, y, c.X, c.Y) < (10 - (loopCounter / 64)))) continue; // Distance to other cities
-				if (_units.Any(u => (u is Settlers) && Common.DistanceToTile(x, y, u.X, u.Y) < (10 - (loopCounter / 64)))) continue; // Distance to other settlers
-				if (Map.Instance.ContinentTiles(tile.ContinentId).Count(t => Map.TileIsType(t, Terrain.Plains, Terrain.Grassland1, Terrain.Grassland2, Terrain.River)) < (32 - (GameTurn / 16))) continue; // Check buildable tiles on continent
-				
-				// After 0 AD, don't spawn a Civilization on a continent that already contains cities.
-				if (Common.TurnToYear(GameTurn) >= 0 && Map.Instance.ContinentTiles(tile.ContinentId).Any(t => t.City != null)) continue;
-				
-				Console.WriteLine(loopCounter.ToString());
+				else
+				{
+					ITile tile = Map[x, y];
+					
+					if (tile.IsOcean) continue; // Is it an ocean tile?
+					if (tile.Hut) continue; // Is there a hut on this tile?
+					if (_units.Any(u => u.X == x || u.Y == y)) continue; // Is there already a unit on this tile?
+					if (tile.LandValue < (12 - (loopCounter / 32))) continue; // Is the land value high enough?
+					if (_cities.Any(c => Common.DistanceToTile(x, y, c.X, c.Y) < (10 - (loopCounter / 64)))) continue; // Distance to other cities
+					if (_units.Any(u => (u is Settlers) && Common.DistanceToTile(x, y, u.X, u.Y) < (10 - (loopCounter / 64)))) continue; // Distance to other settlers
+					if (Map.ContinentTiles(tile.ContinentId).Count(t => Map.TileIsType(t, Terrain.Plains, Terrain.Grassland1, Terrain.Grassland2, Terrain.River)) < (32 - (GameTurn / 16))) continue; // Check buildable tiles on continent
+					
+					// After 0 AD, don't spawn a Civilization on a continent that already contains cities.
+					if (Common.TurnToYear(GameTurn) >= 0 && Map.ContinentTiles(tile.ContinentId).Any(t => t.City != null)) continue;
+					
+					Console.WriteLine(loopCounter.ToString());
+				}
 				
 				// Starting position found, add Settlers
 				IUnit unit = CreateUnit(Unit.Settlers, x, y);
@@ -550,7 +1321,7 @@ namespace CivOne
 			if (startUnit == null) return;
 			int x = startUnit.X, y = startUnit.Y;
 
-			ITile[] continent = Map.Instance.ContinentTiles(Map.Instance[x, y].ContinentId).ToArray();
+			ITile[] continent = Map.ContinentTiles(Map[x, y].ContinentId).ToArray();
 			IUnit[] unitsOnContinent = _units.Where(u => continent.Any(c => (c.X == u.X && c.Y == u.Y))).ToArray();
 			
 			if (unitsOnContinent.Count() == 0)
@@ -570,12 +1341,12 @@ namespace CivOne
 			}
 
 			// Check the terrain of the starting position and the 8 adjacent map squares.
-			if (Map.Instance[x, y].GetBorderTiles().Count(t => (t is River)) >= 1)
+			if (Map[x, y].GetBorderTiles().Count(t => (t is River)) >= 1)
 			{
 				// Add +2 if there's at least one river square among them.
 				handicap += 2;
 			}
-			else if (Map.Instance[x, y].GetBorderTiles().Count(t => (t is Grassland)) >= 3)
+			else if (Map[x, y].GetBorderTiles().Count(t => (t is Grassland)) >= 3)
 			{
 				// If that is not the case, then add +1 if there are 3 or more grassland squares among them.
 				handicap += 1;
@@ -665,6 +1436,9 @@ namespace CivOne
 			_difficulty = difficulty;
 			_competition = competition;
 			Console.WriteLine("Game instance created (difficulty: {0}, competition: {1})", _difficulty, _competition);
+
+			Settings.Animations = true;
+			Settings.CivilopediaText = true;
 			
 			_cities = new List<City>();
 			_units = new List<IUnit>();
@@ -679,7 +1453,7 @@ namespace CivOne
 					{
 						// Chieftain starts with 50 Gold
 						HumanPlayer.Gold = 50;
-						Settings.Instance.InstantAdvice = true;
+						Settings.InstantAdvice = true;
 					}
 					Console.WriteLine("- Player {0} is {1} of the {2} (human)", i, _players[i].LeaderName, _players[i].TribeNamePlural);
 					continue;

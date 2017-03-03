@@ -8,8 +8,6 @@
 // work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 using System;
-using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using CivOne.Enums;
 using CivOne.GFX;
@@ -25,16 +23,16 @@ namespace CivOne.Screens
 		private int GetMenuWidth(string title, string[] items)
 		{
 			int i = 0;
-			Bitmap[] texts = new Bitmap[items.Length + 1];
+			Picture[] texts = new Picture[items.Length + 1];
 			texts[i++] = Resources.Instance.GetText(" " + title, 0, 15);
 			foreach (string item in items)
-				texts[i++] = Resources.Instance.GetText(" " + item, 0, 5);			
+				texts[i++] = Resources.Instance.GetText(" " + item, 0, 5);
 			return (texts.Select(t => t.Width).Max()) + 6;
 		}
 		
-		private Menu AddMenu(int y, string title, EventHandler setChoice, params string[] menuTexts)
+		private Menu CreateMenu(int y, string title, EventHandler setChoice, params string[] menuTexts)
 		{
-			Menu menu = new Menu(Canvas.Image.Palette.Entries)
+			Menu menu = new Menu(Canvas.Palette)
 			{
 				Title = title,
 				X = 203,
@@ -54,7 +52,6 @@ namespace CivOne.Screens
 				menuItem.Selected += setChoice;
 			}
 			menu.ActiveItem = 1;
-			Menus.Add(menu);
 			return menu;
 		}
 		
@@ -90,10 +87,10 @@ namespace CivOne.Screens
 		{
 			if (!_hasUpdate) return false;
 			
-			if (_landMass < 0) Common.AddScreen(AddMenu(6, "LAND MASS:", SetLandMass, "Small", "Normal", "Large"));
-			else if (_temperature < 0) Common.AddScreen(AddMenu(56, "TEMPERATURE:", SetTemperature, "Cool", "Temperate", "Warm"));
-			else if (_climate < 0) Common.AddScreen(AddMenu(106, "CLIMATE:", SetClimate, "Arid", "Normal", "Wet"));
-			else if (_age < 0) Common.AddScreen(AddMenu(156, "AGE:", SetAge, "3 billion years", "4 billion years", "5 billion years"));
+			if (_landMass < 0) AddMenu(CreateMenu(6, "LAND MASS:", SetLandMass, "Small", "Normal", "Large"));
+			else if (_temperature < 0) AddMenu(CreateMenu(56, "TEMPERATURE:", SetTemperature, "Cool", "Temperate", "Warm"));
+			else if (_climate < 0) AddMenu(CreateMenu(106, "CLIMATE:", SetClimate, "Arid", "Normal", "Wet"));
+			else if (_age < 0) AddMenu(CreateMenu(156, "AGE:", SetAge, "3 billion years", "4 billion years", "5 billion years"));
 			else
 			{
 				Destroy();
@@ -111,7 +108,7 @@ namespace CivOne.Screens
 			
 			Picture background = Resources.Instance.LoadPIC("CUSTOM");
 			
-			_canvas = new Picture(320, 200, background.Image.Palette.Entries);
+			_canvas = new Picture(320, 200, background.Palette);
 			AddLayer(background, 0, 0);
 		}
 	}
